@@ -1,34 +1,38 @@
 # Client tokens
 
 Every client (a person's hintbench, the Telegram bot, your CLI) gets its own token. The
-server stores only a sha256 hash of each token in `clients.json` (in the server's project
-root, not in git) and identifies the client by it — clients never send a user name.
+server stores only a sha256 hash of each token in `clients.json` (in the data folder:
+`C:\ProgramData\FontRender` on an installed server, the project root in a checkout) and
+identifies the client by it — clients never send a user name.
 
-Tokens are managed remotely from any checkout with `uv run font-render-clients`. It talks to
-the server's admin endpoints using `FONT_RENDER_SERVER` and either `FONT_RENDER_ADMIN_TOKEN`
-(an admin-scope client token) or the legacy `FONT_RENDER_TOKEN` from `.env`. `font-render
---update/--rollback/--install-browser` work the same way (`FONT_RENDER_ADMIN_TOKEN` first).
+Tokens are managed remotely with `font-render-clients` (client package; `uv run
+font-render-clients` in a checkout) or the web admin. The tool uses the server and admin token
+saved by `font-render login --admin-token <token>`, or `FONT_RENDER_SERVER` and
+`FONT_RENDER_ADMIN_TOKEN` from the environment / `.env` (the legacy `FONT_RENDER_TOKEN` only on
+old checkout servers). `font-render --update/--rollback/--install-browser` work the same way.
+The first admin token is the one `install.ps1` prints; a lost one is re-issued with
+`reset-admin` ([Recovery](#recovery)).
 
 ## Scopes
 
 | Scope | Allows |
 |-------|--------|
-| `render` | `/render`, `/fonts`, `/info`, `/docs` |
+| `render` | `/render`, `/glyphs`, `POST`/`DELETE /fonts`, `/info`, `/docs` |
 | `admin` | everything above + `/update`, `/rollback`, `/browsers/install`, `/admin/*` |
 | `dev` | `/dev/*` only, while developer mode is on and the client is named in it. Not grantable through the admin API: `font-render-server dev-mode on --client <id>` on the server gives it, switching the mode off removes it ([deployment.md](deployment.md#developer-mode)) |
 
 ## Commands
 
 ```bash
-uv run font-render-clients list                           # clients, scopes, status, settings
-uv run font-render-clients add hintbench-anna             # new render client, prints the token ONCE
-uv run font-render-clients add ops --scopes render,admin  # admin client
-uv run font-render-clients rotate hintbench-anna          # new token, the old one stops working
-uv run font-render-clients disable hintbench-anna         # temporarily block
-uv run font-render-clients enable hintbench-anna
-uv run font-render-clients remove hintbench-anna
-uv run font-render-clients settings --anonymous off       # rendering requires a token
-uv run font-render-clients settings --legacy-token off    # admin only via an admin Bearer token
+font-render-clients list                           # clients, scopes, status, settings
+font-render-clients add hintbench-anna             # new render client, prints the token ONCE
+font-render-clients add ops --scopes render,admin  # admin client
+font-render-clients rotate hintbench-anna          # new token, the old one stops working
+font-render-clients disable hintbench-anna         # temporarily block
+font-render-clients enable hintbench-anna
+font-render-clients remove hintbench-anna
+font-render-clients settings --anonymous off       # rendering requires a token (installed: already off)
+font-render-clients settings --legacy-token off    # admin only via an admin Bearer token (installed: already off)
 ```
 
 A lost token cannot be recovered (only its hash is stored) — `rotate` it.
@@ -37,9 +41,10 @@ A lost token cannot be recovered (only its hash is stored) — `rotate` it.
 
 | Client | Where the token goes |
 |--------|----------------------|
-| This repo's tools | `.env`: `FONT_RENDER_CLIENT_TOKEN=<token>` — check with `uv run font-render --info` (`Client: <id>`) |
+| `font-render` (client package) | `font-render login http://SERVER:8000` (asks for it) — check with `font-render --info` (`Client: <id>`) |
+| This repo's tools in a checkout | `.env`: `FONT_RENDER_CLIENT_TOKEN=<token>` |
 | hintbench | ⚙ Settings → token; it shows "signed in as <id>" |
-| font-render-bot | its `.env` on lurkbox: `FONT_RENDER_CLIENT_TOKEN=<token>`, then restart the bot (`uv run python bot_admin.py --restart` in the bot repo, or `nssm restart FontRenderBot`) |
+| font-render-bot | its `.env` on the bot's host: `FONT_RENDER_CLIENT_TOKEN=<token>`, then restart the bot (`uv run python bot_admin.py --restart` in the bot repo, or `nssm restart FontRenderBot`) |
 
 One token per person is recommended (`hintbench-<name>`): it can be revoked alone, the
 server log shows who did what, and each token has its own font-cache namespace, so one

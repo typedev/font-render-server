@@ -13,8 +13,8 @@ the network.
 │  font-render-bot       │                                  │  DirectWrite rasterization   │
 │  (Telegram, own repo)  │                                  │  NSSM service                │
 │                        │                                  │                              │
-│  Admin: font-render,   │  ── POST /update (admin token) ▶ │                              │
-│  web admin /admin/     │  ◀─ git pull + restart ───────── │                              │
+│  Admin: font-render,   │  ── POST /update (admin token) ▶ │  signed release from GitHub  │
+│  web admin /admin/     │  ◀─ verify, install, restart ─── │                              │
 └────────────────────────┘                                  └──────────────────────────────┘
 ```
 
@@ -26,8 +26,8 @@ admin with an admin token.
 
 ## Quick start
 
-**Server (Windows)** — one command in PowerShell (from the first release; see
-[docs/deployment.md](docs/deployment.md), which also covers the git checkout install):
+**Server (Windows)** — one command in PowerShell (see [docs/deployment.md](docs/deployment.md),
+which also covers the git checkout install for development):
 
 ```powershell
 irm https://github.com/typedev/font-render-server/releases/latest/download/install.ps1 | iex
@@ -40,7 +40,7 @@ admin token.
 **Client (any OS)** — the `font-render-client` package ([client/README.md](client/README.md)):
 
 ```bash
-uv tool install font-render-client           # from PyPI, from the first release
+uv tool install font-render-client           # from PyPI (or: pipx install font-render-client)
 font-render login http://SERVER:8000          # asks for the token you got from the server's admin
 font-render font_a.ttf font_b.otf             # comparison waterfall -> ./renders/
 font-render font.ttf --plain --zoom 4         # text only, 4x nearest-neighbor
@@ -58,16 +58,24 @@ uv run font-render --info
 
 ## Commands
 
+Installed with the client package the commands run as they are; in a checkout prefix them
+with `uv run`.
+
 | Command | What it does |
 |---------|--------------|
-| `uv run font-render FONTS... [options]` | Render fonts, save PNG to `./renders/` |
-| `uv run font-render --ping` / `--info` | Server status / full info |
-| `uv run font-render --update` / `--rollback` | Deploy `main` to the server / revert (admin) |
-| `uv run font-render --install-browser NAME` | Install a Playwright browser on the server (admin) |
-| `uv run font-render-batch SRC_DIR OUT_DIR` | Render font pairs from two directories, all browser × ClearType combinations |
-| `uv run font-render-clients list\|add\|rotate\|disable\|enable\|remove\|settings` | Manage client tokens (admin), see [docs/auth.md](docs/auth.md) |
-| `uv run pixel-check capture\|compare --fonts ...` | Byte-identity check of render output, see [docs/development.md](docs/development.md) |
-| `uv run font-render-server` | Run the server (Windows) |
+| `font-render login [SERVER] [--token T] [--admin-token T] [--dev-token T]` / `--show` / `logout` | Save, show, delete the server address and tokens ([client/README.md](client/README.md)) |
+| `font-render FONTS... [options]` | Render fonts, save PNG to `./renders/` (`-o DIR`) |
+| `font-render --ping` / `--info` | Server status / full info and which client you are |
+| `font-render --update` / `--rollback` | Installed server: newest release / previous version; checkout server: git pull / previous commit (admin) |
+| `font-render --install-browser NAME` | Install a Playwright browser on the server (admin) |
+| `font-render --deploy [REF]` / `--deploy --local` / `--release` | Developer mode: deploy a commit / the working tree / back to a release ([docs/deployment.md](docs/deployment.md#developer-mode)) |
+| `font-render-batch SRC_DIR OUT_DIR` | Render font pairs from two directories, all browser × ClearType combinations |
+| `font-render-clients list\|add\|rotate\|disable\|enable\|remove\|settings` | Manage client tokens (admin), see [docs/auth.md](docs/auth.md) |
+| `uv run pixel-check capture\|compare --fonts ...` | Byte-identity check of render output (checkout), see [docs/development.md](docs/development.md) |
+| `font-render-server [serve\|install\|uninstall\|reset-admin\|dev-mode\|selfcheck\|version]` | The server and its local admin commands (Windows; installed: `bin\font-render-server.cmd`) |
+
+Common options: `--server URL` / `-s` (default `FONT_RENDER_SERVER`), `--token` (legacy admin
+form token of old checkout servers).
 
 Render options of `font-render`:
 
@@ -94,7 +102,8 @@ Render options of `font-render`:
 - [docs/deployment.md](docs/deployment.md) — Windows server setup, service, updates, logs, configuration
 - [docs/development.md](docs/development.md) — code layout, tests, pixel identity, benchmarks
 - [docs/releasing.md](docs/releasing.md) — release signing key, making a release
-- [docs/distribution.md](docs/distribution.md) — planned: one-command install, release updates, uninstall, developer mode
+- [docs/distribution.md](docs/distribution.md) — how install, release updates, uninstall and developer mode work (design)
+- [CHANGELOG.md](CHANGELOG.md) — releases
 - [TODO.md](TODO.md) — planned work
 
 ## Project layout
@@ -104,8 +113,10 @@ src/font_render/         server package (FastAPI app, auth, browser pool, font c
 client/                  font-render-client package (font-render, -batch, -clients, login)
 src/font_render_tools/   pixel-check (needs the server package)
 tests/                   pytest suite
-deploy/windows/          launcher.py, reset-admin.cmd, uninstall.cmd (installed layout);
-                         setup_service.bat (NSSM service), start_server.bat (foreground)
-scripts/                 release_key.py (release signing key)
+install.ps1              one-command installer (published with each release)
+deploy/windows/          launcher.py, font-render-server.cmd, reset-admin.cmd, uninstall.cmd
+                         (installed layout); setup_service.bat, start_server.bat (checkout)
+scripts/                 build_release.py, smoke_test.ps1 (CI), release_key.py (signing key)
+.github/workflows/       release.yml: tests, build, Windows smoke test, sign, publish
 docs/                    documentation
 ```

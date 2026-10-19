@@ -45,7 +45,7 @@ ANTIALIAS = {"cleartype": 0, "grayscale": 1}
 PIXEL_GEOMETRY = {"flat": 0, "rgb": 1, "bgr": 2}
 GRID_FIT = {"default": 0, "disabled": 1, "enabled": 2}
 # A clean Windows install (IDWriteFactory::CreateRenderingParams on a fresh profile; /info
-# windows.dwrite_default_params on lurkbox reports the same).
+# windows.dwrite_default_params on the maintainers' server reports the same).
 DEFAULTS = {"rendering_mode": "natural_symmetric", "measuring_mode": "natural",
             "antialias": "cleartype", "pixel_geometry": "rgb", "gamma": 1.8, "contrast": 0.5,
             "grayscale_contrast": 1.0, "cleartype_level": 1.0, "grid_fit": "default"}

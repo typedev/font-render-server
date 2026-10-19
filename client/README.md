@@ -20,10 +20,17 @@ disk.
 |---|---|
 | `font-render login [SERVER] [--token T] [--admin-token T] [--dev-token T]` | Check the token against the server and save it (`~/.config/font-render/config.toml`, `%APPDATA%\font-render\config.toml` on Windows) |
 | `font-render login --show` / `font-render logout` | Show (tokens masked) / delete the saved settings |
-| `font-render FONT... [--ppem 9-24] [--text ...] [--scale 1.5] [--plain] [--zoom N] [--invert]` | Render |
+| `font-render FONT... [--ppem 9-24] [--text ...] [--scale 1.5] [--plain] [--zoom N] [--invert] [-o DIR]` | Render (PNG into `./renders/` or `DIR`) |
 | `font-render-batch DIR_A DIR_B` | Render font pairs across browsers |
-| `font-render-clients list\|add\|rotate\|disable\|enable\|remove` | Manage client tokens (admin token) |
+| `font-render-clients list\|add\|rotate\|disable\|enable\|remove\|settings` | Manage client tokens and access settings (admin token) |
 | `font-render --update` / `--rollback` | Update the server to the newest release / go back (admin token) |
+| `font-render --install-browser chromium\|firefox\|webkit` | Install a browser engine on the server (admin token) |
+| `font-render --deploy [REF]` / `--deploy --local` / `--release` | Developer mode only (dev token) |
+
+Every command takes `--server URL` (`-s`) to talk to another server than the saved one.
+
+The server address is the server computer's name or IP — the install summary on the server
+lists them (`http://STUDIO-PC:8000`, `http://studio-pc.local:8000`, `http://192.168.1.23:8000`).
 
 Settings can also come from the environment or a `.env` file in the current directory:
 `FONT_RENDER_SERVER`, `FONT_RENDER_CLIENT_TOKEN`, `FONT_RENDER_ADMIN_TOKEN`,

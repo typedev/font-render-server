@@ -19,7 +19,7 @@ from pathlib import Path
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
-from . import admin, auth, config, devmode, pool, updates, winenv
+from . import admin, auth, config, devmode, netinfo, pool, updates, winenv
 from .stats import memory_usage, stats
 
 router = APIRouter()
@@ -151,6 +151,7 @@ async def admin_status(request: Request):
             "rollback_target": rollback,
             "layout": "checkout" if config.APP is None else "installed",
             "dev_mode": devmode.view(),
+            "addresses": netinfo.addresses(config.PORT),
         },
         "browsers": {"installed": await pool.browsers_installed(), "slots": bpool.slots_info()},
         "pool": bpool.info(),

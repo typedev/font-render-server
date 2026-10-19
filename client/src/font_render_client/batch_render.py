@@ -147,7 +147,7 @@ def main():
         epilog="""
 Examples:
   %(prog)s ttf_sources/ ttf_output/ --dry-run
-  %(prog)s ttf_sources/ ttf_output/ --server http://192.168.1.10:8000
+  %(prog)s ttf_sources/ ttf_output/ --server http://studio-pc:8000
   %(prog)s ttf_sources/ ttf_output/ --browsers chromium firefox
   %(prog)s ttf_sources/ ttf_output/ --ppem 12-16
         """,

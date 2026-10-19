@@ -337,3 +337,28 @@ def test_launcher_reverts_after_failed_trial_starts(launcher, tmp_path):
     entry = json.loads((tmp_path / "home" / "logs" / "audit.log").read_text())
     assert entry["event"] == "auto-revert" and entry["failed"] == "1.3.0"
     assert mod.choose_version(app) == "1.2.0"  # stays there
+
+
+# ---------------------------------------------------------------------------
+# Addresses shown to admins (netinfo)
+# ---------------------------------------------------------------------------
+
+def test_addresses_skip_loopback_link_local_and_down(monkeypatch):
+    import socket
+    from types import SimpleNamespace as NS
+
+    from font_render import netinfo
+    addrs = {
+        "Ethernet": [NS(family=socket.AF_INET, address="192.168.1.23")],
+        "Loopback": [NS(family=socket.AF_INET, address="127.0.0.1")],
+        "Wi-Fi": [NS(family=socket.AF_INET, address="169.254.10.2")],  # no DHCP answer
+        "Down": [NS(family=socket.AF_INET, address="10.0.0.5")],
+        "v6only": [NS(family=socket.AF_INET6, address="fe80::1")],
+    }
+    stats = {n: NS(isup=n != "Down") for n in addrs}
+    monkeypatch.setattr(netinfo.psutil, "net_if_addrs", lambda: addrs)
+    monkeypatch.setattr(netinfo.psutil, "net_if_stats", lambda: stats)
+    monkeypatch.setattr(netinfo.socket, "gethostname", lambda: "STUDIO-PC")
+    a = netinfo.addresses(8000)
+    assert a["by_name"] == ["http://STUDIO-PC:8000", "http://studio-pc.local:8000"]
+    assert a["by_ip"] == [{"interface": "Ethernet", "url": "http://192.168.1.23:8000"}]

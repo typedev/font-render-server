@@ -2,12 +2,12 @@
 
 Two ways to run the server:
 
-- **Installed** — one command, no Git or Python needed; program in `C:\Program Files\FontRender`,
-  data in `C:\ProgramData\FontRender` ([distribution.md](distribution.md)). Works from the
-  first release of [typedev/font-render-server](https://github.com/typedev/font-render-server)
-  (not published yet); until then build the assets yourself (below) to try it.
-- **Checkout** — a git working copy run by NSSM, updated with `git pull`. How lurkbox runs
-  today, and the way to develop on Windows ([Checkout install](#checkout-install)).
+- **Installed** (recommended) — one command, no Git or Python needed; program in
+  `C:\Program Files\FontRender`, data in `C:\ProgramData\FontRender`, updates from signed
+  [releases](https://github.com/typedev/font-render-server/releases)
+  ([distribution.md](distribution.md)).
+- **Checkout** — a git working copy run by NSSM, updated with `git pull`: for developing on
+  Windows ([Checkout install](#checkout-install)).
 
 ## Install
 
@@ -110,10 +110,32 @@ Copy `dist` to the Windows machine and run `install.ps1 -From <that folder>`. Th
 workflow does the same and runs `scripts/smoke_test.ps1` on a Windows runner
 (install → render → repair → reset-admin → uninstall).
 
+## Finding the server
+
+The install summary (and web admin → Overview → *Clients connect to*) lists the addresses:
+
+```
+Clients connect with one of these (font-render login <address>):
+  http://STUDIO-PC:8000
+  http://studio-pc.local:8000
+  http://192.168.1.23:8000     (Ethernet)
+```
+
+- **By name** — keeps working when DHCP gives the server a new IP: Windows clients resolve
+  the bare computer name (`STUDIO-PC`), macOS and Linux `studio-pc.local` (mDNS; Linux needs
+  Avahi, installed on most desktops). Some managed networks turn these off; then use the IP.
+- **By IP** — always works, but a DHCP lease can change it. Give the server a fixed address
+  with a **DHCP reservation** in the router (often under *LAN*, *DHCP*, *Address reservation*
+  or *Static leases*: pick this computer's MAC address, keep the IP it has now).
+- Interfaces such as `vEthernet (WSL)` or `VirtualBox Host-Only` are virtual — clients on the
+  LAN use the address of the real `Ethernet` / `Wi-Fi` adapter.
+- Nothing answers? The firewall rule allows only **private** networks from the local subnet:
+  Settings → Network & internet → the connection → *Network profile type* = **Private**.
+
 ## Developer mode
 
 Lets named clients deploy any commit or a working tree to an installed server — for the
-people developing it (lurkbox). Off by default; switched on **only on the server**, in an
+people developing it. Off by default; switched on **only on the server**, in an
 elevated console:
 
 ```cmd
@@ -133,7 +155,8 @@ version.)
 - Every admin sees a red banner in the web admin and can **Switch off**; on expiry the
   mode ends by itself. The running build stays until someone switches back.
 
-From the developer's checkout, with `FONT_RENDER_DEV_TOKEN` in `.env`:
+From the developer's checkout, with the printed token in `.env` as `FONT_RENDER_DEV_TOKEN`
+(or saved with `font-render login --dev-token <token>`):
 
 ```bash
 uv run font-render --deploy              # origin/main (fetched first)
@@ -149,7 +172,7 @@ both sides. While developer mode is off, `/dev/*` answers 404.
 
 ## Web admin
 
-Open `http://SERVER:8000/admin/` (lurkbox: `http://lurkbox.local:8000/admin/`) and log in with
+Open `http://SERVER:8000/admin/` ([Finding the server](#finding-the-server)) and log in with
 an admin token: status, client tokens, recent requests, the service log, update/rollback/
 restart. See [admin.md](admin.md).
 
@@ -192,28 +215,36 @@ project root), or the service environment:
 | `OVERLOAD_WAIT_S` | `5` | Queue wait that counts as an overload event |
 | `UPDATE_CHECK_HOURS` | `6` | Installed: look for new releases this often (`0` = only when asked) |
 | `FONT_RENDER_UPDATE_REPO` | `typedev/font-render-server` | Installed: where releases come from |
+| `FONT_RENDER_APP` | — | Program folder (set for the service by the installer) |
+| `FONT_RENDER_SESSION_KEY` | `.session_key` | Web admin session signing key |
+| `FONT_RENDER_AUDIT_LOG` | `logs\audit.log` | Audit log |
+| `FONT_RENDER_FIREFOX_PREFS` | `data\firefox_prefs.json` | Firefox prefs set in the web admin |
+
+Paths are relative to the data folder.
 
 Changing them in `.env` needs a service restart (Services → Font Render Service → Restart, or
-`Restart-Service FontRenderService`). The web admin can change most of them at once and keeps them in `data\settings.json`, which takes
-precedence over `.env` ([admin.md](admin.md#configuration)).
+`Restart-Service FontRenderService`). The web admin can change most of them at once and
+keeps them in `data\settings.json`, which takes precedence over `.env`
+([admin.md](admin.md#configuration)).
 
 ## Files on the server
 
 Installed: program in `C:\Program Files\FontRender` (`bin\`, `python\`, `versions\<v>\`,
 `browsers\`, `current`), data in `C:\ProgramData\FontRender` — layout in
-[distribution.md](distribution.md#on-disk-layout). The data folder holds the same files as a checkout's project root
-(where they are not in git), plus `install.json` and `logs\audit.log`:
+[distribution.md](distribution.md#on-disk-layout). The data folder holds the same files as
+a checkout's project root (where they are not in git), plus `install.json` and, while
+developer mode is or was on, `devmode.json`:
 
 | File | Content |
 |------|---------|
 | `.env` | Configuration |
 | `clients.json` | Client token hashes and auth settings |
-| `.last_good_commit` | Rollback target written by `/update` |
+| `.last_good_commit` | Checkout only: rollback target written by `/update` (installed: `APP\previous`) |
 | `.session_key` | Signing key of web admin sessions (delete to end all sessions) |
 | `data\settings.json` | Settings changed in the web admin (override `.env`) |
 | `data\stats.json` | Traffic per client, per-minute load, overload episodes ([admin.md](admin.md)) |
 | `logs\service.log` | Service log: one line per request with the client id, never font names |
-| `logs\audit.log` | Installs, admin token resets (and later updates, developer mode) |
+| `logs\audit.log` | Installs, admin token resets, updates, rollbacks, developer mode (JSON lines; web admin → Maintenance) |
 | `tools\nssm.exe` | NSSM (checkout; installed: `C:\Program Files\FontRender\bin\nssm.exe`) |
 
 The Telegram bot runs on the same host as its own service (`FontRenderBot`, admin port 8001,
@@ -236,7 +267,7 @@ powershell Get-Content <data>\logs\service.log -Tail 20 -Wait
 
 ## Checkout install
 
-For development and for lurkbox until it moves to the installed layout.
+For developing on Windows. Servers for real use: [Install](#install).
 
 ### Requirements
 
@@ -249,18 +280,16 @@ For development and for lurkbox until it moves to the installed layout.
 ```cmd
 git clone https://github.com/typedev/font-render-server.git
 cd font-render-server
-copy .env.example .env
 ```
 
-Set `FONT_RENDER_TOKEN` in `.env` (the legacy admin token used by `font-render --update`).
-
-Then run **`deploy\windows\setup_service.bat` as administrator**. It:
+Then run **`deploy\windows\setup_service.bat` as administrator** (press Enter when it asks
+for a token: the legacy token is not needed). It:
 
 1. checks `git` and `uv`;
 2. runs `uv sync` (installs the project and its dependencies);
 3. installs Playwright Chromium;
 4. downloads NSSM into `tools\`;
-5. reads `FONT_RENDER_TOKEN` from `.env`;
+5. reads the optional legacy `FONT_RENDER_TOKEN` from `.env`;
 6. registers and starts the `FontRenderService` service: `uv run font-render-server` in the
    project root, auto-restart after 5 s, log `logs\service.log` (rotated at 5 MB).
 
@@ -268,13 +297,14 @@ Re-running the script reinstalls the service with the current settings.
 
 ### First admin client
 
-The legacy `FONT_RENDER_TOKEN` is only for bootstrapping. From a client checkout with that
-token in `.env`: create an admin client, put its token into the client `.env` as
-`FONT_RENDER_ADMIN_TOKEN`, create render clients, then close anonymous rendering and the
-legacy token ([auth.md](auth.md)). lurkbox runs this way (both off):
+A new checkout server allows anonymous rendering until told otherwise. In an elevated
+console in the project folder create the admin client; put the printed token into your
+client's `.env` as `FONT_RENDER_ADMIN_TOKEN` (or `font-render login --admin-token`), then
+create render clients and close anonymous rendering and the legacy token ([auth.md](auth.md)):
 
 ```bash
-uv run font-render-clients add admin --scopes render,admin
+uv run font-render-server reset-admin                     # prints the admin token once
+uv run font-render-clients add mylaptop                   # render clients, from any client
 uv run font-render-clients settings --anonymous off
 uv run font-render-clients settings --legacy-token off
 ```
@@ -343,9 +373,11 @@ icacls C:\ProgramData\ssh\administrators_authorized_keys /inheritance:r /grant "
 Restart-Service sshd
 ```
 
-An admin's SSH session is elevated. Do not edit the deployed checkout over SSH (deploy with
-`--update`); copy code to a scratch folder and run it with the service's
-`.venv\Scripts\python.exe`, so a crash in native code cannot take the service down. The
+An admin's SSH session is elevated. Do not edit the installed program over SSH (deploy with
+`font-render --deploy` in developer mode, or a release); copy code to a scratch folder and run
+it with the current version's interpreter
+(`C:\Program Files\FontRender\versions\<current>\.venv\Scripts\python.exe`), so a crash in
+native code cannot take the service down. The
 service account's registry is `HKU\S-1-5-18`. `SystemParametersInfo` set calls have no
 effect from an SSH session.
 

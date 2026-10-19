@@ -1,16 +1,19 @@
 # Web admin
 
-`http://lurkbox.local:8000/admin/` — a browser page for running the server remotely.
+`http://SERVER:8000/admin/` — a browser page for running the server remotely (`SERVER`: the
+server computer's name or IP, see [deployment.md](deployment.md#finding-the-server)).
 
 ## Logging in
 
 Paste an admin token:
 
-- an admin-scope client token (`font-render-clients add ops --scopes render,admin`), or
-- the legacy `FONT_RENDER_TOKEN` while `legacy_admin_token` is on.
+- the token `install.ps1` printed at the end of the install (client `admin`; lost: Start →
+  Font Render → Reset admin token), or
+- any other admin-scope client token (`font-render-clients add ops --scopes render,admin`), or
+- on an old checkout server, the legacy `FONT_RENDER_TOKEN` while `legacy_admin_token` is on.
 
 The server answers with a signed session cookie (`HttpOnly`, `SameSite=Strict`, 12 h,
-`FONT_RENDER_SESSION_TTL_S`). It is signed with `.session_key` in the project root (created on
+`FONT_RENDER_SESSION_TTL_S`). It is signed with `.session_key` in the data folder (created on
 first login, not in git), so sessions survive restarts and updates. A session ends when it
 expires, on *Log out*, or when its credential changes: rotating, disabling or removing that
 client, changing `FONT_RENDER_TOKEN`, or turning off `legacy_admin_token`. Deleting
@@ -74,7 +77,7 @@ and `/health` are left out of the request list, the load and the log.
 ## Configuration
 
 Maintenance → Configuration edits the server limits (`RENDER_*`, `FONT_CACHE_*`, `MAX_FONTS`,
-`MAX_FONT_SIZE`, `MAX_PPEM_VALUES`, `OVERLOAD_WAIT_S`, `FONT_RENDER_SESSION_TTL_S`). Changes
+`MAX_FONT_SIZE`, `MAX_PPEM_VALUES`, `OVERLOAD_WAIT_S`, `FONT_RENDER_SESSION_TTL_S`, `UPDATE_CHECK_HOURS`). Changes
 are validated against a range and saved on the server in `data\settings.json`, which takes
 precedence over `.env` and the service environment. *Reset* removes the override, so the
 `.env` or built-in value applies again.
@@ -111,7 +114,7 @@ them too.
 | `GET /admin/` | The page (public; data needs a session) |
 | `POST /admin/login` (`token`) / `POST /admin/logout` | Start / end a session |
 | `GET /admin/api/me` | Who is logged in |
-| `GET /admin/api/status` | Everything shown on Overview, Clients and Maintenance; `windows_text` = the service account's font smoothing (on lurkbox: ClearType, RGB, contrast 1200) |
+| `GET /admin/api/status` | Everything shown on Overview, Clients and Maintenance; `windows_text` = the service account's font smoothing (e.g. ClearType, RGB, contrast 1200) |
 | `GET /admin/api/requests?limit=&client=` | Recent requests, newest first |
 | `GET /admin/api/logs?lines=&q=` | Log tail; `q` filters (case-insensitive) |
 | `GET /admin/api/load?minutes=` | Per-minute load (max 7 days), overload episodes |

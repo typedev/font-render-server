@@ -25,7 +25,7 @@ On your own machine, in the repository root:
 uv run --with cryptography scripts/release_key.py generate --out ~/release-signing-key.txt
 # private key written to …/release-signing-key.txt (keep it secret, see docs/releasing.md)
 # public key: 3q2+7w…=
-# key id:     138a8421ffab2b88
+# key id:     4fdea217d5c9d919
 ```
 
 The file is created with mode 600 and the tool refuses to overwrite an existing one.
@@ -92,36 +92,37 @@ Put the printed public key into `src/font_render/release_key.py`, commit, push:
 
 ```python
 TRUSTED_KEYS = [
-    "3q2+7w…=",  # 138a8421ffab2b88, created 2026-10-18
+    "pZ324jLYI6ukn2E+oejxs6kudovbkuJmhahcpNAF9Ck=",  # 4fdea217d5c9d919, created 2026-10-18
 ]
 ```
 
-Releases built before this commit cannot be verified by anything, so this has to land
-before the first release (`v1.0.0`).
+Done for the current key (`4fdea217d5c9d919`, 2026-10-18; its private half is the `release`
+environment secret). A server only installs releases signed by a key in the list it ships with.
 
 ## Making a release
 
 1. Bump `version` in `pyproject.toml` **and** `client/pyproject.toml` (the build checks they
    match; `RENDER_VERSION` in `config.py` if pixels change), update `CHANGELOG.md`, commit to
    `main`.
-2. Check pixels on lurkbox with the release candidate as a dev build:
+2. Check pixels on the maintainers' server (lurkbox) with the release candidate as a dev build:
    `font-render --deploy` → `pixel-check compare --server` against the baseline.
 3. Tag and push: `git tag v1.3.0 && git push origin v1.3.0` (`v1.3.0b1` →
    pre-release, beta channel).
-4. The release workflow tests and builds, then waits at the **sign**
-   job: `typedev/font-render-server` → **Actions** → the run → **Review deployments** →
-   `release` → **Approve and deploy**. Check that the run is for the tag you just pushed
-   before approving.
-5. The workflow signs `SHA256SUMS`, smoke-tests the install on Windows and publishes the
-   release, then `font-render-client` on PyPI. Installed servers see the release at their
-   next update check.
+4. The release workflow tests, builds and smoke-tests the install on Windows (about 10–15
+   minutes), then waits at the **sign** job: `typedev/font-render-server` → **Actions** → the
+   run → **Review deployments** → `release` → **Approve and deploy**. Check that the run is for
+   the tag you just pushed before approving.
+5. The workflow signs `SHA256SUMS`, publishes the GitHub Release, then `font-render-client`
+   on PyPI. Installed servers see the release at their next update check (web admin →
+   Maintenance → Check for updates shows it at once).
+6. Update lurkbox (`font-render --update`) and run `pixel-check compare --server`.
 
 Check any release by hand:
 
 ```bash
 gh release download v1.3.0 --repo typedev/font-render-server -p 'SHA256SUMS*' -D /tmp/r
 uv run --with cryptography scripts/release_key.py verify /tmp/r/SHA256SUMS
-# OK: /tmp/r/SHA256SUMS signed by key 138a8421ffab2b88
+# OK: /tmp/r/SHA256SUMS signed by key 4fdea217d5c9d919
 ```
 
 Signing locally (if CI cannot): `RELEASE_SIGNING_KEY=… uv run --with cryptography

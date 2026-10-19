@@ -53,7 +53,7 @@ No linter or build step beyond `uv sync`.
 - `src/font_render_tools/` — `pixel-check` (needs the server package).
 - `tests/` — pytest; `deploy/windows/` — launcher.py + .cmd wrappers (installed layout),
   checkout service installer; `install.ps1`, `scripts/` (build_release, smoke_test, release_key),
-  `.github/workflows/release.yml` (Windows smoke test; sign/publish only in the public repo).
+  `.github/workflows/release.yml` (test, build, Windows smoke test; on a tag: sign after approval, publish, PyPI).
 
 ## Rules
 

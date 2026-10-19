@@ -98,7 +98,7 @@ async def root():
             "GET /info": "Full server information (browsers, render defaults)",
             "POST /render": "Render fonts as interleaved waterfall (returns PNG)",
             "POST /browsers/install": "Install a Playwright browser (requires token)",
-            "POST /update": "Pull latest code and restart (requires token)",
+            "POST /update": "Installed: newest signed release; checkout: git pull; then restart (admin)",
             "POST /rollback": "Rollback to previous version (requires token)",
             "POST /fonts": "Cache fonts in RAM for this client, returns sha256 ids",
             "DELETE /fonts": "Drop this client's cached fonts",

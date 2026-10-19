@@ -17,11 +17,16 @@ development, not for real rendering comparisons.
 ```
 src/font_render/
   __main__.py     entry point: font-render-server [serve] (uvicorn on FONT_RENDER_HOST:PORT,
-                  0.0.0.0:8000), install, uninstall, reset-admin, selfcheck, version
+                  0.0.0.0:8000), install, uninstall, reset-admin, dev-mode, selfcheck, version
   install.py      install / repair / uninstall of the installed layout (service, firewall,
                   ACL, Start menu, Apps & features); side effects through Runner, DryRunner
                   for --dry-run and tests (docs/distribution.md)
   localadmin.py   commands for the server machine: elevation check, reset_admin(), audit log
+  updates.py      release updates: GitHub releases (ETag), the update job (signature, hash,
+                  uv sync, Chromium, selfcheck, switch), rollback, prune, mark_healthy
+  devmode.py      developer mode: devmode.json, expiry, allow_from, dev scope, /dev/*,
+                  `dev-mode` subcommand
+  release_key.py  TRUSTED_KEYS: public keys that sign releases (docs/releasing.md)
   app.py          FastAPI app, lifespan (pool warm-up, janitor), /render, /fonts, /info, /health
   admin.py        /admin/* (client tokens, settings), /browsers/install, /update, /rollback
   auth.py         ClientRegistry (clients.json), AuthMiddleware, admin checks, web sessions
@@ -49,7 +54,7 @@ client/           font-render-client: its own package (dependency: requests), a 
   src/font_render_client/
     client.py       font-render (render, --info, --update/--rollback, --deploy/--release)
     login.py        font-render login | logout (config file)
-    _env.py         environment < ./.env < repository .env < config file
+    _env.py         settings: environment > ./.env > repository .env > config file (first wins)
     batch_render.py font-render-batch
     manage_clients.py font-render-clients
     deploy.py       packs a git ref / the working tree for developer-mode deploys
@@ -57,13 +62,18 @@ src/font_render_tools/
   pixel_check.py  pixel-check (renders in-process with the server package)
 tests/            pytest suite
 deploy/windows/   launcher.py (service launcher of the installed layout: APP\current, trial
-                  starts, auto-revert), reset-admin.cmd, uninstall.cmd (self-elevating);
+                  starts, auto-revert), font-render-server.cmd (subcommands of the current
+                  version), reset-admin.cmd, uninstall.cmd (self-elevating);
                   setup_service.bat, start_server.bat (checkout install)
-scripts/          release_key.py (release signing key, docs/releasing.md)
+install.ps1       the one-command installer (published with each release)
+scripts/          build_release.py (release assets), smoke_test.ps1 (Windows cycle in CI),
+                  release_key.py (release signing key, docs/releasing.md)
+.github/workflows/release.yml  test, build, Windows smoke test; on a tag: sign (approval),
+                  GitHub Release, PyPI
 ```
 
 Checkout vs installed layout: in a checkout `config.HOME` (data: `.env`, `clients.json`,
-`data/`, `logs/`) is the repository root, as before. An installed version
+`data/`, `logs/`) is the repository root. An installed version
 (`APP\versions\<v>`) finds `APP`, and `HOME` through the `APP\home` pointer file;
 `FONT_RENDER_HOME` / `FONT_RENDER_APP` override both. Try the installer anywhere with
 `uv run font-render-server install --dry-run --app /tmp/a --home /tmp/h --source .`
@@ -108,6 +118,10 @@ uv run pytest
 | `test_settings.py` | settings editable in the web admin: validation, overrides in `data/settings.json`, live apply |
 | `test_stats.py` | traffic per client, per-minute load, overload episodes, persistence |
 | `test_glyphs.py` | `/glyphs` with a fake engine: parameters, cell independence, determinism, run layout; `sfnt.prepare` touches only `name`/`head` |
+| `test_install.py` | data paths by layout, install / repair / import / uninstall plans (DryRunner), reset-admin, the launcher's trial starts and auto-revert |
+| `test_updates.py` | release choice by channel, signature check, the update pipeline against a fake GitHub (bad signature, tampered zip, failed steps), rollback, pruning, endpoints, the client following a job |
+| `test_devmode.py` | developer mode: 404 while off, dev scope not grantable, expiry, allow_from, deploys (fonts refused), back to a release, client packing |
+| `test_client.py` | `font-render login` config file, precedence, logout; client and server versions match |
 
 Tests use a system TTF (skip if none) and `fonttools` (dev dependency) to build an
 unhinted copy.
@@ -120,8 +134,8 @@ point of the change. Capture a baseline before, compare after:
 ```bash
 uv run pixel-check capture --fonts renders/pixel_fonts/*                    # in-process
 uv run pixel-check compare --fonts renders/pixel_fonts/*
-uv run pixel-check capture --server http://192.168.1.3:8000 --fonts ...     # a running server
-uv run pixel-check compare --server http://192.168.1.3:8000 --fonts ...
+uv run pixel-check capture --server http://SERVER:8000 --fonts ...         # a running server
+uv run pixel-check compare --server http://SERVER:8000 --fonts ...
 ```
 
 It renders a fixed matrix (each font and all together × ClearType on/off × scale 1/1.5 ×

@@ -14,23 +14,10 @@ Subcommands for the machine the server runs on (docs/distribution.md):
 import argparse
 import importlib
 import pkgutil
-import socket
 import sys
 from pathlib import Path
 
 from . import __version__
-
-
-def get_local_ip() -> str:
-    """Detect the LAN IP address of this machine."""
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("192.168.1.1", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except OSError:
-        return "127.0.0.1"
 
 
 def cmd_serve(args) -> int:
@@ -39,9 +26,9 @@ def cmd_serve(args) -> int:
     from . import config
     from .app import app
 
-    host = get_local_ip()
-    print(f"Starting Font Render Service on http://{host}:{config.PORT}")
-    print(f"API docs: http://{host}:{config.PORT}/docs")
+    from .netinfo import addresses
+    a = addresses(config.PORT)
+    print(f"Starting Font Render Service on {', '.join(a['by_name'] + [x['url'] for x in a['by_ip']])}")
     # access_log off: AuthMiddleware logs one line per request with the client id
     uvicorn.run(app, host=config.HOST, port=config.PORT, access_log=False)
     return 0

@@ -334,7 +334,7 @@ wheels = [
 
 [[package]]
 name = "font-render-client"
-version = "1.0.1"
+version = "1.0.2"
 source = { editable = "client" }
 dependencies = [
     { name = "requests" },
@@ -345,7 +345,7 @@ requires-dist = [{ name = "requests" }]
 
 [[package]]
 name = "font-render-server"
-version = "1.0.1"
+version = "1.0.2"
 source = { editable = "." }
 dependencies = [
     { name = "brotli" },

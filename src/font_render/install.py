@@ -532,7 +532,22 @@ def cmd_install(args) -> int:
     else:
         print("  Admin token: unchanged (existing clients kept)")
     print("  Lost the token? Start > Font Render > Reset admin token")
+    print_addresses(opts.port)
     return 0 if (result.healthy or not opts.start) else 1
+
+
+def print_addresses(port: int) -> None:
+    """How clients reach this server: by name (survives DHCP) or by the current IP."""
+    from .netinfo import addresses
+    a = addresses(port)
+    print()
+    print("Clients connect with one of these (font-render login <address>):")
+    for url in a["by_name"]:
+        print(f"  {url}")
+    for row in a["by_ip"]:
+        print(f"  {row['url']:<28} ({row['interface']})")
+    print("The computer name keeps working when DHCP gives a new IP; for a fixed IP reserve")
+    print("one for this computer in the router (docs/deployment.md#finding-the-server).")
 
 
 def cmd_uninstall(args) -> int:

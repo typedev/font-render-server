@@ -83,7 +83,7 @@ way applications apply it.
 - **Several locations per request.** List the same sha several times in `font_ids`, one row
   per location. The font is embedded in the page once.
 
-Checked on lurkbox: per-glyph advances at a fractional location match a fontTools instance
+Checked on the maintainers' Windows 11 server: per-glyph advances at a fractional location match a fontTools instance
 (avar + HVAR) within 0.03 px in Chromium and exactly in `/glyphs` dwrite.
 
 ### Server-Timing
@@ -135,7 +135,7 @@ Glyph ids rendered by a native Windows engine instead of a browser: `engine=gdi`
 | `axes` (dwrite) | — | Variable font location in user coordinates, `wght=350.5,wdth=80`. It goes through `IDWriteFontResource::CreateFontFace`, with avar applied. Every `fvar` axis is set (clamped, defaults for missing ones) and returned in `params.axes`. A tag not in `fvar` → `400`. GDI cannot render arbitrary locations (`400`): send a static instance |
 
 The DirectWrite defaults are the rendering params of a clean Windows install (`/info`
-`windows.dwrite_default_params` shows the same on lurkbox), so `dwrite` output does not depend
+`windows.dwrite_default_params` shows the same on the maintainers' server), so `dwrite` output does not depend
 on the account's settings. Windows does the blending itself:
 `IDWriteGdiInterop::CreateBitmapRenderTarget` → `DrawGlyphRun` onto the background with params
 from `IDWriteFactory2::CreateCustomRenderingParams`. The server applies no gamma or contrast of
@@ -148,7 +148,7 @@ gamma (contrast) and subpixel order are the service account's SPI settings (`/in
 is dropped: GDI names the faces of a font with `fvar` from STAT, so a partial instance whose
 default is not "Regular" would not be found. All other tables are passed through byte for byte.
 
-How the modes relate to Chromium `/render` (measured on lurkbox with hinted statics). The bytes
+How the modes relate to Chromium `/render` (measured on the maintainers' Windows 11 server with hinted statics). The bytes
 always differ, because each engine blends differently, so the comparison depends on the metric:
 
 | Mode | Pixels with max per-channel \|Δ\| > 64 | Channels binarized at 64, masks compared |
@@ -214,6 +214,9 @@ Server version and capabilities. Fields clients rely on:
 | `version`, `branch`, `commit_date` | Deployed git commit; in an installed layout `version` is the version directory (`1.2.0`, `dev-a1b2c3d`) and `branch` is `installed` |
 | `release` | Package version (`pyproject.toml`), e.g. `1.2.0` |
 | `layout` | `checkout` (git working copy) or `installed` ([distribution.md](distribution.md)) |
+| `dev_mode` | `{"enabled": bool, "until": "<time>"\|null}` — developer mode ([deployment.md](deployment.md#developer-mode)) |
+| `platform`, `python` | Host OS and the server's Python version |
+| `browsers` | `{supported, installed, active}` |
 | `render_version` | Bumped when rendered pixels can change — use it (with `browser_version` and `platform`) as a render-cache key |
 | `browser_version` | e.g. `{"chromium": "145.0.7632.6"}` |
 | `api` | `2` = font cache available; `3` = `engines`, `render_versions`, `windows` |
@@ -232,7 +235,7 @@ Server version and capabilities. Fields clients rely on:
 |-------|---------|
 | `build`, `display_version` | Windows build with UBR (`10.0.26100.6899`), e.g. `24H2` — the rasterizer changes with updates |
 | `dll` | File versions of `dwrite.dll`, `gdi32full.dll`, `win32kfull.sys` |
-| `account` | User the service runs as (`SYSTEM` on lurkbox); the settings below belong to this account |
+| `account` | User the service runs as (`SYSTEM` for the installed service); the settings below belong to this account |
 | `spi` | `SystemParametersInfo` font smoothing: `font_smoothing`, `smoothing_type` (1 standard, 2 ClearType), `smoothing_contrast` (1000–2200), `smoothing_orientation` (0 BGR, 1 RGB). GDI reads these |
 | `cleartype_registry` | Raw ClearType Tuner values, `{"hkcu"\|"hklm": {"DISPLAY1": {GammaLevel, EnhancedContrastLevel, ClearTypeLevel, PixelStructure, ...}}}`; missing = Windows defaults. Chromium (since 132) follows the Tuner's contrast and gamma on a desktop, but in the service (session 0) these keys change nothing: tested on lurkbox with extreme values, all engines stayed byte-identical |
 | `dwrite_default_params` | `IDWriteFactory::CreateRenderingParams`: `gamma`, `enhanced_contrast`, `grayscale_enhanced_contrast`, `cleartype_level`, `pixel_geometry`, `rendering_mode` |
@@ -240,6 +243,11 @@ Server version and capabilities. Fields clients rely on:
 A part that cannot be read is `{"error": "..."}`. For a Chromium render-cache key use
 `render_versions.chromium`, `browser_version`, `windows.build`, `windows.spi` and
 `windows.cleartype_registry`.
+
+## GET /
+
+Service name, running version (`version`, `branch`, `commit_date` as in `/info`) and a short
+list of endpoints. Needs a token like `/info` while anonymous rendering is off.
 
 ## GET /health
 

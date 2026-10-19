@@ -16,7 +16,7 @@ Usage:
     uv run font-render font_a.ttf font_b.ttf --ppem 9-20 --text "Hello World"
 
     # Custom server address
-    uv run font-render font_a.ttf font_b.ttf --server http://192.168.1.100:8000
+    uv run font-render font_a.ttf font_b.ttf --server http://studio-pc:8000
 
     # Open result immediately in image viewer
     uv run font-render font_a.ttf font_b.ttf --open

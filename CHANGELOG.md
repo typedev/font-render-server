@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.2 — 2026-10-19
+
+- The install summary, the server's console and web admin → Overview list the addresses
+  clients can use: the computer name (keeps working under DHCP), `<name>.local`, and the
+  current IP of each network adapter. How to find the server and fix its IP:
+  docs/deployment.md#finding-the-server.
+- Documentation checked against the code: `.env.example` no longer sets a placeholder
+  legacy admin token, the checkout install bootstraps with `reset-admin`, examples use
+  neutral server names, THIRD_PARTY.md lists what a release brings along.
+
 ## 1.0.1 — 2026-10-19
 
 - `install.ps1` run with `irm | iex` no longer closes the PowerShell window when it finishes

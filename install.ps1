@@ -12,7 +12,7 @@
 
 param(
     [string]$Version = '',                    # default: the release this script came from, else the latest
-    [int]$Port = 8000,
+    [int]$Port = 0,                           # 0: keep the installed port, else 8000 (or the next free one)
     [switch]$NoFirewall,
     [ValidateSet('stable', 'beta')][string]$Channel = 'stable',
     [string]$InstallDir = "$env:ProgramFiles\FontRender",
@@ -179,11 +179,16 @@ Remove-Item -Recurse -Force $staging -ErrorAction SilentlyContinue
 # --- Service, firewall, first admin, shortcuts, Apps & features -------------------------------
 $python = Join-Path $target '.venv\Scripts\python.exe'
 $installArgs = @('-m', 'font_render', 'install', '--app', $InstallDir, '--home', $DataDir,
-                 '--port', $Port, '--channel', $Channel)
+                 '--channel', $Channel)
+if ($Port) { $installArgs += @('--port', $Port) }
 if ($NoFirewall) { $installArgs += '--no-firewall' }
 if ($ImportFrom) { $installArgs += @('--import-from', $ImportFrom) }
 & $python @installArgs
 $code = $LASTEXITCODE
+# A refused repair (e.g. a busy -Port) changed nothing: bring the stopped service back
+if ($code -ne 0 -and $wasRunning -and (Get-Service -Name $Service -ErrorAction SilentlyContinue)) {
+    Start-Service -Name $Service -ErrorAction SilentlyContinue
+}
 if ($Relaunched) { Read-Host 'Press Enter to close' | Out-Null }
 if ($AsFile) { exit $code }
 if ($code -ne 0) { throw "Font Render Service install failed (exit code $code), see the messages above" }

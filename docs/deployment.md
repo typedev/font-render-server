@@ -39,7 +39,7 @@ Options (pass them through a script block):
 | Option | Default | Meaning |
 |---|---|---|
 | `-Version` | the release the script came from | install this version (`1.2.0`) |
-| `-Port` | `8000` | HTTP port (written to `C:\ProgramData\FontRender\.env`) |
+| `-Port` | the installed one, else `8000` | HTTP port (written to `C:\ProgramData\FontRender\.env`); see [Port](#port) |
 | `-NoFirewall` | off | do not add the firewall rule |
 | `-Channel` | `stable` | update channel (`beta` also offers pre-releases) |
 | `-InstallDir`, `-DataDir` | `C:\Program Files\FontRender`, `C:\ProgramData\FontRender` | where program and data go |
@@ -79,6 +79,15 @@ installed by running the install command again.
 
 Run the same command again. It keeps client tokens, settings and statistics ("Admin token:
 unchanged") and replaces the program files.
+
+### Port
+
+Without `-Port` the installer keeps the port of an existing install, else uses `8000`; if
+another program listens there, it takes the next free one (8001, 8002, …) and says which
+program has 8000. An explicit `-Port` that another program uses stops the install before
+anything changes. To move the server to another port later, run the install command again
+with `-Port 8080`: `.env`, the firewall rule and the Start menu link follow; tell the
+clients the new address (`font-render login http://SERVER:8080`).
 
 ### Lost admin token
 

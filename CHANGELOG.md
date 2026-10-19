@@ -6,6 +6,10 @@
   clients can use: the computer name (keeps working under DHCP), `<name>.local`, and the
   current IP of each network adapter. How to find the server and fix its IP:
   docs/deployment.md#finding-the-server.
+- Port: a repair keeps the installed port (it used to reset it to 8000); if 8000 is taken by
+  another program the installer takes the next free port and says which program has it; an
+  explicit `-Port` that is taken stops the install before any change, and a refused repair
+  restarts the service it stopped.
 - Documentation checked against the code: `.env.example` no longer sets a placeholder
   legacy admin token, the checkout install bootstraps with `reset-admin`, examples use
   neutral server names, THIRD_PARTY.md lists what a release brings along.

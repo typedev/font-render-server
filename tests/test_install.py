@@ -96,10 +96,14 @@ def source(layout):
     return src
 
 
-def _install(layout, source, runner=None, **opts):
+def _install(layout, source, runner=None, busy=None, **opts):
+    """busy: {port: process name} of ports other programs listen on (default: all free)."""
     runner = runner or install.DryRunner(quiet=True)
+    busy = busy or {}
+    owner = lambda port, app: {"pid": 1, "name": busy[port], "ours": False} if port in busy else None  # noqa: E731
     result = install.install(layout, source, install.InstallOptions(**opts), runner,
-                             launcher_python=Path("py.exe"), playwright_python=Path("venv-py.exe"))
+                             launcher_python=Path("py.exe"), playwright_python=Path("venv-py.exe"),
+                             port_owner_fn=owner)
     return result, runner
 
 
@@ -254,6 +258,45 @@ def test_cli_dry_run(layout, source, capsys):
     assert "dry run: not saved" in out and not layout.home.exists()
     assert cli.main(["uninstall", "--dry-run", "--quiet", "--app", str(layout.app),
                      "--home", str(layout.home)]) == 0
+
+
+def test_port_default_and_busy_default(layout, source):
+    _, r = _install(layout, source)
+    assert "FONT_RENDER_PORT=8000" in r.written(layout.home / ".env")
+    result, r = _install(layout, source, busy={8000: "otherapp.exe", 8001: "x.exe"})
+    assert "FONT_RENDER_PORT=8002" in r.written(layout.home / ".env")
+    assert _has(r, "netsh", "add", "localport=8002") and result.url.endswith(":8002/admin/")
+
+
+def test_explicit_busy_port_stops_before_any_change(layout, source):
+    r = install.DryRunner(quiet=True)
+    with pytest.raises(SystemExit, match="port 8080 is in use by otherapp.exe"):
+        _install(layout, source, runner=r, busy={8080: "otherapp.exe"}, port=8080)
+    assert r.ops == []
+
+
+def test_repair_keeps_installed_port(layout, source):
+    layout.home.mkdir(parents=True)
+    (layout.home / "install.json").write_text(json.dumps({"port": 8123}))
+    _, r = _install(layout, source)
+    assert "FONT_RENDER_PORT=8123" in r.written(layout.home / ".env")
+    _, r = _install(layout, source, port=9000)  # explicit: move it
+    assert "FONT_RENDER_PORT=9000" in r.written(layout.home / ".env")
+
+
+def test_import_takes_port_from_checkout_env(layout, source, tmp_path):
+    old = tmp_path / "checkout"
+    old.mkdir()
+    (old / "clients.json").write_text(json.dumps({"clients": {"admin": {"scopes": ["admin"]}}}))
+    (old / ".env").write_text("FONT_RENDER_PORT=8500\n")
+    _, r = _install(layout, source, import_from=old)
+    assert "FONT_RENDER_PORT=8500" in r.written(layout.home / ".env")
+
+
+def test_own_service_does_not_count_as_busy(layout):
+    owner = lambda port, app: {"pid": 1, "name": "python.exe", "ours": True}  # noqa: E731
+    assert install.choose_port(None, 8000, layout.app, owner=owner) == 8000
+    assert install.choose_port(8000, None, layout.app, owner=owner) == 8000
 
 
 def test_set_env_line():

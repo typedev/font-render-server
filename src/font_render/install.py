@@ -211,9 +211,58 @@ class DryRunner(Runner):
         return texts[-1] if texts else None
 
 
+DEFAULT_PORT = 8000
+PORT_SEARCH = 100  # 8000 busy → the first free one of 8001..8099
+
+
+def port_owner(port: int, app: Path) -> dict | None:
+    """Who listens on TCP `port`: {"pid", "name", "ours"} (ours = this service), or None."""
+    import psutil
+    try:
+        conns = psutil.net_connections(kind="tcp")
+    except (psutil.AccessDenied, OSError):
+        return None
+    for c in conns:
+        if c.status != psutil.CONN_LISTEN or not c.laddr or c.laddr.port != port:
+            continue
+        name, ours = "?", False
+        try:
+            proc = psutil.Process(c.pid)
+            name = proc.name()
+            exe = proc.exe() or ""
+            ours = exe.lower().startswith(str(app).lower()) or any(
+                "font_render" in part or "launcher.py" in part for part in proc.cmdline())
+        except (psutil.Error, OSError):
+            pass
+        return {"pid": c.pid, "name": name, "ours": ours}
+    return None
+
+
+def choose_port(requested: int | None, installed: int | None, app: Path, owner=port_owner,
+                say=print) -> int:
+    """The port to install on. An explicit port must be free (or ours); otherwise keep the
+    installed one or 8000, moving on to the next free one if another program has it."""
+    if requested:
+        o = owner(requested, app)
+        if o and not o["ours"]:
+            raise SystemExit(f"port {requested} is in use by {o['name']} (pid {o['pid']}); "
+                             f"choose another one with -Port")
+        return requested
+    start = installed or DEFAULT_PORT
+    o = owner(start, app)
+    if not o or o["ours"]:
+        return start
+    for port in range(start + 1, start + PORT_SEARCH):
+        p = owner(port, app)
+        if not p or p["ours"]:
+            say(f"Port {start} is in use by {o['name']} (pid {o['pid']}): using port {port} instead")
+            return port
+    raise SystemExit(f"ports {start}-{start + PORT_SEARCH - 1} are all in use; choose one with -Port")
+
+
 @dataclass
 class InstallOptions:
-    port: int = 8000
+    port: int | None = None  # None: keep the installed one, else 8000 (next free if busy)
     firewall: bool = True
     channel: str = "stable"
     start: bool = True
@@ -276,8 +325,16 @@ def _shortcut_ps(lnk: Path, target: Path, description: str) -> str:
             f"$s.Description = {q(description)}; $s.Save()")
 
 
+def _env_port(env_text: str) -> int | None:
+    for line in env_text.splitlines():
+        key, _, value = line.strip().partition("=")
+        if key.strip() == "FONT_RENDER_PORT" and value.strip().isdigit():
+            return int(value.strip())
+    return None
+
+
 def install(layout: Layout, source: Path, opts: InstallOptions, runner: Runner,
-            launcher_python: Path, playwright_python: Path) -> InstallResult:
+            launcher_python: Path, playwright_python: Path, port_owner_fn=port_owner) -> InstallResult:
     """Install or repair: idempotent, keeps data. `source` is APP\\versions\\<version>."""
     version = source.name
     home, app = layout.home, layout.app
@@ -285,6 +342,16 @@ def install(layout: Layout, source: Path, opts: InstallOptions, runner: Runner,
     fresh = not clients_file.exists()
     audit_file = home / "logs" / "audit.log"
     runner.say(f"Installing Font Render Service {version}" + ("" if fresh else " (repair, data kept)"))
+
+    # 0. Port, before anything changes: an explicit one that is busy stops here
+    try:
+        installed_port = json.loads((home / "install.json").read_text(encoding="utf-8")).get("port")
+    except (OSError, ValueError):
+        installed_port = None
+    env_source = (opts.import_from if opts.import_from else home) / ".env"
+    if not installed_port and env_source.is_file():
+        installed_port = _env_port(env_source.read_text(encoding="utf-8"))
+    opts.port = choose_port(opts.port, installed_port, app, owner=port_owner_fn, say=runner.say)
 
     # 1. Data directory, administrators and SYSTEM only (token hashes, session key)
     for d in (home, home / "logs", home / "data", layout.bin):
@@ -568,7 +635,8 @@ def add_parsers(sub) -> None:
     p.add_argument("--app", help="program directory (default: the one this version is in)")
     p.add_argument("--home", help=r"data directory (default: %%ProgramData%%\FontRender)")
     p.add_argument("--source", help=argparse.SUPPRESS)  # tests and --dry-run from a checkout
-    p.add_argument("--port", type=int, default=8000)
+    p.add_argument("--port", type=int, default=None,
+                   help="HTTP port (default: the installed one, else 8000 or the next free one)")
     p.add_argument("--no-firewall", action="store_true", help="do not add the firewall rule")
     p.add_argument("--channel", choices=("stable", "beta"), default="stable")
     p.add_argument("--no-start", action="store_true", help="do not start the service")

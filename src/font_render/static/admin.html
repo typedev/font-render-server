@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="same-origin">
+<title>Font Render Admin</title>
+<link rel="stylesheet" href="/admin/static/admin.css">
+<script src="/admin/static/admin.js" defer></script>
+</head>
+<body>
+
+<section id="login" class="login" hidden>
+  <form id="login-form" class="card login-card">
+    <h1>Font Render Service</h1>
+    <p class="muted">Admin token: an admin-scope client token or the legacy <code>FONT_RENDER_TOKEN</code>.</p>
+    <input id="login-token" type="password" autocomplete="current-password" placeholder="Token" required autofocus>
+    <button type="submit" class="primary">Log in</button>
+    <p id="login-error" class="error" role="alert"></p>
+  </form>
+</section>
+
+<div id="app" hidden>
+  <header class="topbar">
+    <div class="brand">Font Render <span class="muted">admin</span></div>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="overview" class="active">Overview</button>
+      <button role="tab" data-tab="load">Load</button>
+      <button role="tab" data-tab="traffic">Traffic</button>
+      <button role="tab" data-tab="clients">Clients</button>
+      <button role="tab" data-tab="requests">Requests</button>
+      <button role="tab" data-tab="logs">Logs</button>
+      <button role="tab" data-tab="maintenance">Maintenance</button>
+    </nav>
+    <div class="who">
+      <span id="conn" class="dot" title="connection"></span>
+      <span id="who-version" class="mono"></span>
+      <span id="who-subject" class="muted"></span>
+      <button id="logout" class="ghost">Log out</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="devbanner" class="devbanner" hidden>
+      <div class="grow">
+        <strong>Developer mode is on</strong> — the clients below can deploy any code to this server.
+        <div id="devbanner-text" class="small"></div>
+      </div>
+      <button id="dev-off" class="danger" data-confirm="Switch developer mode off?">Switch off</button>
+    </div>
+    <!-- Overview -->
+    <section data-panel="overview" class="panel">
+      <div class="grid">
+        <div class="card"><h2>Server</h2><dl id="ov-server" class="kv"></dl></div>
+        <div class="card"><h2>Load</h2><dl id="ov-load" class="kv"></dl></div>
+        <div class="card"><h2>Machine</h2><dl id="ov-machine" class="kv"></dl></div>
+        <div class="card"><h2>Font cache</h2><dl id="ov-fonts" class="kv"></dl></div>
+      </div>
+      <div class="card">
+        <h2>Browsers</h2>
+        <div class="table-wrap"><table id="ov-browsers"></table></div>
+        <p id="ov-installed" class="muted small"></p>
+      </div>
+      <div class="card">
+        <h2>Client activity <span class="muted small">since restart</span></h2>
+        <div class="table-wrap"><table id="ov-activity"></table></div>
+      </div>
+    </section>
+
+    <!-- Load -->
+    <section data-panel="load" class="panel" hidden>
+      <div class="row wrap">
+        <div class="seg" id="ld-range">
+          <button data-min="60" class="active">1 h</button>
+          <button data-min="360">6 h</button>
+          <button data-min="1440">24 h</button>
+          <button data-min="10080">7 d</button>
+        </div>
+        <span class="muted small grow">Per-minute samples; pool state sampled every second. Red bands — overload episodes.</span>
+      </div>
+      <div id="ld-summary" class="stats"></div>
+      <div class="card">
+        <h2>Overload episodes <span class="muted small">queue full (429), timeouts (504), server errors, queue wait over threshold</span></h2>
+        <div class="table-wrap"><table id="ld-episodes"></table></div>
+      </div>
+      <div class="charts" id="ld-charts"></div>
+    </section>
+
+    <!-- Traffic -->
+    <section data-panel="traffic" class="panel" hidden>
+      <div class="card">
+        <h2>Traffic per client <span class="muted small">request + response body bytes; nothing about the content</span></h2>
+        <div class="table-wrap"><table id="tr-table"></table></div>
+      </div>
+      <div class="card">
+        <h2>Daily volume, last 30 days <span class="muted small">in + out, by client</span></h2>
+        <div id="tr-chart"></div>
+      </div>
+    </section>
+
+    <!-- Clients -->
+    <section data-panel="clients" class="panel" hidden>
+      <div id="token-reveal" class="card reveal" hidden>
+        <h2>New token for <span id="token-client"></span></h2>
+        <p class="muted">Shown once. The server keeps only its hash.</p>
+        <div class="row">
+          <input id="token-value" class="mono grow" readonly>
+          <button id="token-copy">Copy</button>
+          <button id="token-hide" class="ghost">Done</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Clients</h2>
+        <div class="table-wrap"><table id="cl-table"></table></div>
+      </div>
+      <div class="grid two">
+        <form id="cl-add" class="card">
+          <h2>Add client</h2>
+          <div class="row wrap">
+            <input id="cl-id" class="grow" placeholder="client-id (a-z 0-9 _ . -)" pattern="[a-z0-9][a-z0-9_.\-]{0,63}" required>
+            <label class="check"><input type="checkbox" name="scope" value="render" checked> render</label>
+            <label class="check"><input type="checkbox" name="scope" value="admin"> admin</label>
+            <button type="submit" class="primary">Add</button>
+          </div>
+        </form>
+        <div class="card">
+          <h2>Access settings</h2>
+          <label class="toggle"><input type="checkbox" id="set-anon">
+            <span><b>Anonymous rendering</b><br><span class="muted small">/render and /fonts without a token</span></span></label>
+          <label class="toggle"><input type="checkbox" id="set-legacy">
+            <span><b>Legacy admin token</b><br><span class="muted small">FONT_RENDER_TOKEN accepted for admin actions and login</span></span></label>
+        </div>
+      </div>
+    </section>
+
+    <!-- Requests -->
+    <section data-panel="requests" class="panel" hidden>
+      <div class="card">
+        <div class="row wrap">
+          <h2 class="grow">Recent requests <span class="muted small">in memory, since restart; admin page reads not included</span></h2>
+          <select id="rq-client"><option value="">all clients</option></select>
+          <label class="check"><input type="checkbox" id="rq-errors"> errors only</label>
+        </div>
+        <div class="table-wrap tall"><table id="rq-table"></table></div>
+      </div>
+    </section>
+
+    <!-- Logs -->
+    <section data-panel="logs" class="panel" hidden>
+      <div class="card">
+        <div class="row wrap">
+          <h2 class="grow">Service log <span id="lg-file" class="muted small mono"></span></h2>
+          <input id="lg-filter" type="search" placeholder="Filter">
+          <select id="lg-lines">
+            <option>200</option><option selected>500</option><option>1000</option><option>3000</option>
+          </select>
+          <label class="check"><input type="checkbox" id="lg-auto" checked> auto-refresh</label>
+          <button id="lg-refresh">Refresh</button>
+        </div>
+        <pre id="lg-pre" class="log"></pre>
+      </div>
+    </section>
+
+    <!-- Maintenance -->
+    <section data-panel="maintenance" class="panel" hidden>
+      <div class="grid two">
+        <div class="card">
+          <h2>Code</h2>
+          <dl id="mt-code" class="kv"></dl>
+          <div id="mt-channel-row" class="row" hidden>
+            <label>Update channel
+              <select id="mt-channel"><option value="stable">stable</option><option value="beta">beta (pre-releases too)</option></select>
+            </label>
+          </div>
+          <div class="row wrap">
+            <button id="mt-check">Check for updates</button>
+            <button id="mt-update" class="primary" data-confirm="Update and restart?">Update to origin/main</button>
+            <button id="mt-rollback" data-confirm="Roll back and restart?">Roll back</button>
+          </div>
+          <div id="mt-pending"></div>
+        </div>
+        <div class="card">
+          <h2>Service</h2>
+          <div class="actions">
+            <div><button id="mt-restart" data-confirm="Restart the service?">Restart service</button>
+              <p class="muted small">Exits the process; NSSM starts it again. Cached fonts are dropped (clients re-upload on 409); admin sessions survive.</p></div>
+            <div><button id="mt-recycle" data-confirm="Recycle all browsers?">Recycle browsers</button>
+              <p class="muted small">Closes all browsers (busy ones after their render); new ones start on demand.</p></div>
+            <div><button id="mt-clear" data-confirm="Drop all cached fonts?">Clear font cache</button>
+              <p class="muted small">Drops every client's cached fonts; clients re-upload on 409.</p></div>
+            <div class="row">
+              <select id="mt-browser"><option>chromium</option><option>firefox</option><option>webkit</option></select>
+              <button id="mt-install">Install browser</button>
+            </div>
+            <p class="muted small">Runs <code>playwright install</code> as the service account (up to 2 min).</p>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row wrap">
+          <h2 class="grow">Audit log <span class="muted small">installs, token resets, updates, developer mode</span></h2>
+          <button id="mt-audit" class="ghost">Show</button>
+        </div>
+        <div id="mt-audit-list"></div>
+      </div>
+      <div class="card">
+        <div class="row wrap">
+          <h2 class="grow">Configuration <span class="muted small">saved on the server in data/settings.json, overrides .env; most apply at once</span></h2>
+          <button id="cf-reload" class="ghost">Discard edits</button>
+          <button id="cf-save" class="primary" disabled>Save changes</button>
+        </div>
+        <p id="cf-pending" class="pending" hidden></p>
+        <div class="table-wrap"><table id="cf-table"></table></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="overlay" class="overlay" hidden><div class="card"><div class="spinner"></div><p id="overlay-text"></p></div></div>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+</body>
+</html>

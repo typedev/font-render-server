@@ -1,0 +1,129 @@
+# Test, build, smoke-test on Windows; on a tag in the public repository also sign and publish
+# (docs/distribution.md#releases-ci, docs/releasing.md). Run by hand: Actions -> Release ->
+# Run workflow (builds and smoke-tests, never publishes).
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.12.21'
+      - run: uv sync --frozen
+      - run: uv run playwright install --with-deps chromium
+      - run: uv run pytest -q
+
+  build:
+    needs: test
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.build.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: build
+        run: python3 scripts/build_release.py dist | tee build.log | grep '^version=' >> "$GITHUB_OUTPUT"
+      - name: Tag matches pyproject versions (server and client)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          v=$(grep -m1 '^version=' build.log | cut -d= -f2)
+          c=$(python3 -c "import tomllib; print(tomllib.load(open('client/pyproject.toml','rb'))['project']['version'])")
+          [ "$GITHUB_REF_NAME" = "v$v" ] || { echo "tag $GITHUB_REF_NAME != v$v (pyproject.toml)"; exit 1; }
+          [ "$c" = "$v" ] || { echo "client/pyproject.toml $c != $v"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  smoke:
+    needs: build
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Install, use, repair, reset-admin, uninstall
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke_test.ps1 -Dist dist
+      - name: Diagnostics
+        if: failure()
+        shell: powershell
+        run: |
+          Get-Service FontRenderService -ErrorAction SilentlyContinue | Format-List
+          Get-ChildItem "$env:ProgramData\FontRender\logs" -ErrorAction SilentlyContinue
+          Get-Content "$env:ProgramData\FontRender\logs\service.log" -Tail 100 -ErrorAction SilentlyContinue
+          Get-EventLog -LogName Application -Source nssm -Newest 20 -ErrorAction SilentlyContinue | Format-List TimeGenerated, Message
+
+  sign:
+    needs: [build, smoke]
+    if: startsWith(github.ref, 'refs/tags/v') && github.repository == 'typedev/font-render-server'
+    runs-on: ubuntu-24.04
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.12.21'
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Sign SHA256SUMS
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+        run: |
+          uv run --no-project --with cryptography scripts/release_key.py sign dist/SHA256SUMS
+          uv run --no-project --with cryptography scripts/release_key.py verify dist/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: signed
+          path: dist/
+
+  publish:
+    needs: [build, sign]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: signed
+          path: dist
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          pre=""
+          case "$VERSION" in *[a-z]*) pre="--prerelease" ;; esac
+          gh release create "v$VERSION" dist/* --repo "$GITHUB_REPOSITORY" \
+            --title "Font Render Service $VERSION" --generate-notes $pre
+
+  # The client package on PyPI, by trusted publishing (no token; docs/releasing.md#pypi)
+  pypi:
+    needs: [build, publish]
+    if: startsWith(github.ref, 'refs/tags/v') && github.repository == 'typedev/font-render-server'
+    runs-on: ubuntu-24.04
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.12.21'
+      - run: uv build --package font-render-client --out-dir pypi-dist
+      - uses: pypa/gh-action-pypi-publish@v1.14.2
+        with:
+          packages-dir: pypi-dist

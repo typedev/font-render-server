@@ -1,5 +1,26 @@
 # TODO
 
+## Distribution follow-ups (after 1.0.2, 2026-10-19)
+
+Install, updates, uninstall and developer mode are done ([docs/distribution.md](docs/distribution.md)).
+Open:
+
+- **Unused Chromium builds** stay in `APP\browsers` after an update that changes Playwright;
+  prune the builds no kept version uses (each version's `playwright install --dry-run`).
+- **Python change between releases**: the updater syncs with `PYTHON_VERSION` (3.12); a
+  release needing another Python must be installed with `install.ps1`. Let the update read
+  the new release's `requires-python` and `uv python install` it first.
+- **Not run by hand yet**: `irm | iex` from a non-administrator PowerShell (the UAC relaunch,
+  fixed in 1.0.1, is not covered by CI — the runner is already elevated).
+- **lurkbox leftovers**: the old checkout `C:\WORK\wintt-server-render` is no longer used by
+  the service; delete it once the bot no longer looks there for NSSM
+  (font-render-bot's installer falls back to `..\wintt-server-render\tools\`).
+- **font-render-bot docs** still link to `typedev/wintt-server-render` (its own repo/agent).
+- **Firefox** is not installed on lurkbox since the reinstall (`font-render --install-browser
+  firefox` or web admin → Maintenance, if needed).
+- Checkout mode keeps the git-based `/update` / `/rollback` (fine for development); drop it
+  if nobody runs a checkout service any more.
+
 ## font-render-bot: moved to lurkbox (done 2026-10-14)
 
 The bot runs on lurkbox as NSSM service `FontRenderBot` from its own checkout and is

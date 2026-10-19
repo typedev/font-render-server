@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1 — 2026-10-19
+
+- `install.ps1` run with `irm | iex` no longer closes the PowerShell window when it finishes
+  (the summary with the admin token stayed invisible) or fails; started from a
+  non-administrator PowerShell it now relaunches itself elevated correctly.
+
 ## 1.0.0 — 2026-10-19
 
 First public release.

@@ -56,8 +56,17 @@ Check (Test-Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Font
 Check ((Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\FontRenderService').Publisher -eq 'Alexander Lubovenko') 'publisher'
 Check ($null -ne (Get-NetFirewallRule -DisplayName 'Font Render Service' -ErrorAction SilentlyContinue)) 'firewall rule'
 
-# --- repair keeps clients ---
-$out = Install-Release
+# Like `irm | iex`: the script runs inside the caller's session, which must survive it
+function Install-InSession {
+    $cmd = "& ([scriptblock]::Create((Get-Content -Raw '$Dist\install.ps1'))) -From '$Dist'; 'SESSION-STILL-ALIVE'"
+    $out = & powershell -NoProfile -ExecutionPolicy Bypass -Command $cmd 2>&1 | Out-String
+    Write-Host $out
+    Check ($out -match 'SESSION-STILL-ALIVE') 'install inside a session leaves the session open'
+    return $out
+}
+
+# --- repair keeps clients (run in-session, as irm | iex does) ---
+$out = Install-InSession
 Check ($out -match 'Admin token: unchanged') 'repair keeps the admin token'
 Check ((Invoke-RestMethod "$Base/health").status -eq 'ok') '/health ok after repair'
 Check ((Render $token).code -eq '200') 'old token still works after repair'

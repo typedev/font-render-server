@@ -34,26 +34,41 @@ $UvSha256 = '5d223efa0bf00208c3853246af09420419dfbd352536aa6bb8163d6170e23890'
 $PythonVersion = '3.12'
 $Service = 'FontRenderService'
 
+# Run as a file (-File, CI, the elevated relaunch) the script may `exit`; run with
+# `irm | iex` or as a script block it runs inside the user's session, where `exit` would
+# close their PowerShell window: there it returns or throws instead.
+$AsFile = [bool]$PSCommandPath
+
 function Say($text) { Write-Host $text }
 function Fail($text) {
     Write-Host "ERROR: $text" -ForegroundColor Red
     if ($Relaunched) { Read-Host 'Press Enter to close' | Out-Null }
-    exit 1
+    if ($AsFile) { exit 1 }
+    throw "Font Render Service was not installed: $text"
 }
 
 # --- Elevation ------------------------------------------------------------------------------
 $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Say 'Administrator rights are needed; asking for them...'
-    $self = Join-Path $env:TEMP 'font-render-install.ps1'
-    Set-Content -Path $self -Value $MyInvocation.MyCommand.ScriptBlock.ToString() -Encoding UTF8
+    if ($PSCommandPath) {
+        $self = $PSCommandPath
+    } else {
+        # Piped into iex there is no file to relaunch: fetch this release's script again
+        $self = Join-Path $env:TEMP 'font-render-install.ps1'
+        $v = if ($Version) { $Version } else { $ReleaseVersion }
+        $url = if ($v) { "https://github.com/$Repo/releases/download/v$v/install.ps1" }
+               else { "https://github.com/$Repo/releases/latest/download/install.ps1" }
+        Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $self
+    }
     $argList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$self`"", '-Relaunched')
     foreach ($p in $PSBoundParameters.GetEnumerator()) {
         if ($p.Value -is [switch]) { if ($p.Value) { $argList += "-$($p.Key)" } }
         else { $argList += "-$($p.Key)"; $argList += "`"$($p.Value)`"" }
     }
     $proc = Start-Process powershell -Verb RunAs -ArgumentList $argList -Wait -PassThru
-    exit $proc.ExitCode
+    if ($AsFile) { exit $proc.ExitCode }
+    return
 }
 
 # --- Checks ---------------------------------------------------------------------------------
@@ -170,4 +185,5 @@ if ($ImportFrom) { $installArgs += @('--import-from', $ImportFrom) }
 & $python @installArgs
 $code = $LASTEXITCODE
 if ($Relaunched) { Read-Host 'Press Enter to close' | Out-Null }
-exit $code
+if ($AsFile) { exit $code }
+if ($code -ne 0) { throw "Font Render Service install failed (exit code $code), see the messages above" }

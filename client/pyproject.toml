@@ -1,6 +1,6 @@
 [project]
 name = "font-render-client"
-version = "1.0.0"
+version = "1.0.1"
 description = "Command-line client of the Font Render Service: render fonts on a Windows DirectWrite server"
 readme = "README.md"
 license = "MIT"

@@ -25,7 +25,7 @@ the clipboard) — keep it in a password manager:
 
 ```
 Font Render Service 1.0.0 installed and running
-  Web admin:   http://STUDIO-PC:8000/admin/
+  Web admin:   http://STUDIO-PC:41800/admin/
   Admin token: …
   Lost the token? Start > Font Render > Reset admin token
 ```
@@ -39,7 +39,7 @@ Options (pass them through a script block):
 | Option | Default | Meaning |
 |---|---|---|
 | `-Version` | the release the script came from | install this version (`1.2.0`) |
-| `-Port` | the installed one, else `8000` | HTTP port (written to `C:\ProgramData\FontRender\.env`); see [Port](#port) |
+| `-Port` | the installed one, else `41800` | HTTP port (written to `C:\ProgramData\FontRender\.env`); see [Port](#port) |
 | `-NoFirewall` | off | do not add the firewall rule |
 | `-Channel` | `stable` | update channel (`beta` also offers pre-releases) |
 | `-InstallDir`, `-DataDir` | `C:\Program Files\FontRender`, `C:\ProgramData\FontRender` | where program and data go |
@@ -82,9 +82,10 @@ unchanged") and replaces the program files.
 
 ### Port
 
-Without `-Port` the installer keeps the port of an existing install, else uses `8000`; if
-another program listens there, it takes the next free one (8001, 8002, …) and says which
-program has 8000. An explicit `-Port` that another program uses stops the install before
+Without `-Port` the installer keeps the port of an existing install, else uses `41800`; if
+another program listens there, it takes the next free one (41801, 41802, …) and says which
+program has 41800. (Releases up to 1.0.2 used 8000; an install made by them keeps it on update
+and repair.) An explicit `-Port` that another program uses stops the install before
 anything changes. To move the server to another port later, run the install command again
 with `-Port 8080`: `.env`, the firewall rule and the Start menu link follow; tell the
 clients the new address (`font-render login http://SERVER:8080`).
@@ -125,9 +126,9 @@ The install summary (and web admin → Overview → *Clients connect to*) lists 
 
 ```
 Clients connect with one of these (font-render login <address>):
-  http://STUDIO-PC:8000
-  http://studio-pc.local:8000
-  http://192.168.1.23:8000     (Ethernet)
+  http://STUDIO-PC:41800
+  http://studio-pc.local:41800
+  http://192.168.1.23:41800     (Ethernet)
 ```
 
 - **By name** — keeps working when DHCP gives the server a new IP: Windows clients resolve
@@ -181,7 +182,7 @@ both sides. While developer mode is off, `/dev/*` answers 404.
 
 ## Web admin
 
-Open `http://SERVER:8000/admin/` ([Finding the server](#finding-the-server)) and log in with
+Open `http://SERVER:41800/admin/` ([Finding the server](#finding-the-server)) and log in with
 an admin token: status, client tokens, recent requests, the service log, update/rollback/
 restart. See [admin.md](admin.md).
 
@@ -193,7 +194,7 @@ If the machine's network is marked *Public* in Windows, change it to *Private* o
 rule. Checkout installs add the rule by hand:
 
 ```cmd
-netsh advfirewall firewall add rule name="Font Render Service" dir=in action=allow protocol=tcp localport=8000 profile=private remoteip=localsubnet
+netsh advfirewall firewall add rule name="Font Render Service" dir=in action=allow protocol=tcp localport=41800 profile=private remoteip=localsubnet
 ```
 
 ## Configuration
@@ -203,7 +204,7 @@ project root), or the service environment:
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `FONT_RENDER_PORT` | `8000` | HTTP port (`FONT_RENDER_HOST`: bind address, `0.0.0.0`) |
+| `FONT_RENDER_PORT` | `41800` | HTTP port (`FONT_RENDER_HOST`: bind address, `0.0.0.0`) |
 | `FONT_RENDER_HOME` | project root | Data folder (set by the installer) |
 | `FONT_RENDER_TOKEN` | — | Legacy admin token (form field `token`; checkout installs only) |
 | `FONT_RENDER_CLIENTS` | `clients.json` | Client token file ([auth.md](auth.md)) |
@@ -257,7 +258,8 @@ developer mode is or was on, `devmode.json`:
 | `tools\nssm.exe` | NSSM (checkout; installed: `C:\Program Files\FontRender\bin\nssm.exe`) |
 
 The Telegram bot runs on the same host as its own service (`FontRenderBot`, admin port 8001,
-its own checkout); it is set up and updated from its repository, not from here.
+render server at `http://127.0.0.1:41800`, its own checkout); it is set up and updated from its
+repository, not from here.
 
 Fonts are never written to disk: uploads are held in memory, the font cache is RAM-only,
 Chromium runs with its disk cache disabled.

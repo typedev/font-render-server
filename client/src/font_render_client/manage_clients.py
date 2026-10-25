@@ -38,7 +38,7 @@ def _on_off(value: str) -> str:
 def main():
     load_env()
     parser = argparse.ArgumentParser(description="Manage Font Render Service client tokens")
-    parser.add_argument("--server", default=os.environ.get("FONT_RENDER_SERVER", "http://localhost:8000"))
+    parser.add_argument("--server", default=os.environ.get("FONT_RENDER_SERVER", "http://localhost:41800"))
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("list")
     p = sub.add_parser("add")

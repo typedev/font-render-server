@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Default port 41800 instead of 8000 (8000 is a common development port; 41800 is below the
+  range where Windows and Hyper-V reserve ports). Existing installs keep their port on update
+  and repair (a checkout imported with `--import-from` stays on 8000 unless its `.env` says
+  otherwise); move one with `install.ps1 -Port 41800`. Client defaults follow.
+- Web admin login: a Client field (the username for password managers; it must match the
+  token, empty = any), so Chrome saves and fills the admin token.
+- Embedded mode (`font-render-server embedded`): a private server for a desktop app on
+  127.0.0.1, token in memory, handshake on stdout, exits with its parent (docs/embedded.md).
+
 ## 1.0.2 — 2026-10-19
 
 - The install summary, the server's console and web admin → Overview list the addresses

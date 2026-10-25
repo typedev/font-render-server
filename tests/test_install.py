@@ -262,10 +262,10 @@ def test_cli_dry_run(layout, source, capsys):
 
 def test_port_default_and_busy_default(layout, source):
     _, r = _install(layout, source)
-    assert "FONT_RENDER_PORT=8000" in r.written(layout.home / ".env")
-    result, r = _install(layout, source, busy={8000: "otherapp.exe", 8001: "x.exe"})
-    assert "FONT_RENDER_PORT=8002" in r.written(layout.home / ".env")
-    assert _has(r, "netsh", "add", "localport=8002") and result.url.endswith(":8002/admin/")
+    assert "FONT_RENDER_PORT=41800" in r.written(layout.home / ".env")
+    result, r = _install(layout, source, busy={41800: "otherapp.exe", 41801: "x.exe"})
+    assert "FONT_RENDER_PORT=41802" in r.written(layout.home / ".env")
+    assert _has(r, "netsh", "add", "localport=41802") and result.url.endswith(":41802/admin/")
 
 
 def test_explicit_busy_port_stops_before_any_change(layout, source):

@@ -14,7 +14,8 @@
   <form id="login-form" class="card login-card">
     <h1>Font Render Service</h1>
     <p class="muted">Admin token: an admin-scope client token or the legacy <code>FONT_RENDER_TOKEN</code>.</p>
-    <input id="login-token" type="password" autocomplete="current-password" placeholder="Token" required autofocus>
+    <input id="login-client" name="username" autocomplete="username" placeholder="Client (admin)" spellcheck="false">
+    <input id="login-token" name="password" type="password" autocomplete="current-password" placeholder="Token" required>
     <button type="submit" class="primary">Log in</button>
     <p id="login-error" class="error" role="alert"></p>
   </form>

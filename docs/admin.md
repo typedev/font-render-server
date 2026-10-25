@@ -1,16 +1,22 @@
 # Web admin
 
-`http://SERVER:8000/admin/` — a browser page for running the server remotely (`SERVER`: the
+`http://SERVER:41800/admin/` — a browser page for running the server remotely (`SERVER`: the
 server computer's name or IP, see [deployment.md](deployment.md#finding-the-server)).
 
 ## Logging in
 
-Paste an admin token:
+Enter the client id (optional; `admin` for the install's token) and paste an admin token:
 
 - the token `install.ps1` printed at the end of the install (client `admin`; lost: Start →
   Font Render → Reset admin token), or
 - any other admin-scope client token (`font-render-clients add ops --scopes render,admin`), or
 - on an old checkout server, the legacy `FONT_RENDER_TOKEN` while `legacy_admin_token` is on.
+
+With the client id filled in, a password manager saves the pair (client id as the username,
+token as the password) and fills it in next time; a wrong client id for the token is a failed
+login. A saved login belongs to the address it was saved on: the server's name and its IP
+address are different sites to the browser. On plain HTTP Chrome fills the
+fields only after a click in them.
 
 The server answers with a signed session cookie (`HttpOnly`, `SameSite=Strict`, 12 h,
 `FONT_RENDER_SESSION_TTL_S`). It is signed with `.session_key` in the data folder (created on
@@ -112,7 +118,7 @@ them too.
 | Endpoint | Effect |
 |----------|--------|
 | `GET /admin/` | The page (public; data needs a session) |
-| `POST /admin/login` (`token`) / `POST /admin/logout` | Start / end a session |
+| `POST /admin/login` (`token`, optional `client`) / `POST /admin/logout` | Start / end a session |
 | `GET /admin/api/me` | Who is logged in |
 | `GET /admin/api/status` | Everything shown on Overview, Clients and Maintenance; `windows_text` = the service account's font smoothing (e.g. ClearType, RGB, contrast 1200) |
 | `GET /admin/api/requests?limit=&client=` | Recent requests, newest first |

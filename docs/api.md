@@ -1,6 +1,6 @@
 # HTTP API
 
-Base URL: `http://<server>:8000`. Interactive docs: `GET /docs` (needs a token once anonymous
+Base URL: `http://<server>:41800`. Interactive docs: `GET /docs` (needs a token once anonymous
 access is off). `GET /info` reports `"api": 3` (2 = font cache, 3 = engines and Windows render settings).
 
 ## Authentication

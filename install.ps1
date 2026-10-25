@@ -12,7 +12,7 @@
 
 param(
     [string]$Version = '',                    # default: the release this script came from, else the latest
-    [int]$Port = 0,                           # 0: keep the installed port, else 8000 (or the next free one)
+    [int]$Port = 0,                           # 0: keep the installed port, else 41800 (or the next free one)
     [switch]$NoFirewall,
     [ValidateSet('stable', 'beta')][string]$Channel = 'stable',
     [string]$InstallDir = "$env:ProgramFiles\FontRender",

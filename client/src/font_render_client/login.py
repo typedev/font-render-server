@@ -1,7 +1,7 @@
 """`font-render login` / `logout`: keep the server address and tokens in a config file.
 
-    font-render login http://studio-pc:8000             # asks for the token (not echoed)
-    font-render login http://studio-pc:8000 --token T   # or pass it
+    font-render login http://studio-pc:41800             # asks for the token (not echoed)
+    font-render login http://studio-pc:41800 --token T   # or pass it
     font-render login --admin-token T                   # add an admin token to the saved server
     font-render login --show                            # what is saved (tokens masked)
     font-render logout                                  # delete the config file
@@ -62,7 +62,7 @@ def main(argv: list[str]) -> int:
         print(f"Removed {path}")
         return 0
     p = argparse.ArgumentParser(prog="font-render login", description="Save the server and tokens")
-    p.add_argument("server", nargs="?", help="e.g. http://studio-pc:8000 (default: the saved one)")
+    p.add_argument("server", nargs="?", help="e.g. http://studio-pc:41800 (default: the saved one)")
     p.add_argument("--token", help="render token (asked for if missing)")
     p.add_argument("--admin-token", help="admin token (font-render-clients, --update, --rollback)")
     p.add_argument("--dev-token", help="developer-mode token (--deploy, --release)")
@@ -77,7 +77,7 @@ def main(argv: list[str]) -> int:
         return 0
     server = (args.server or data.get("server") or "").rstrip("/")
     if not server:
-        p.error("give the server address, e.g. font-render login http://studio-pc:8000")
+        p.error("give the server address, e.g. font-render login http://studio-pc:41800")
     if server != data.get("server"):
         data = {}  # another server: tokens of the old one do not apply
     data["server"] = server

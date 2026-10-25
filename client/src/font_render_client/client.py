@@ -16,7 +16,7 @@ Usage:
     uv run font-render font_a.ttf font_b.ttf --ppem 9-20 --text "Hello World"
 
     # Custom server address
-    uv run font-render font_a.ttf font_b.ttf --server http://studio-pc:8000
+    uv run font-render font_a.ttf font_b.ttf --server http://studio-pc:41800
 
     # Open result immediately in image viewer
     uv run font-render font_a.ttf font_b.ttf --open
@@ -50,7 +50,7 @@ from ._env import load_env
 
 load_env()
 
-DEFAULT_SERVER = "http://localhost:8000"
+DEFAULT_SERVER = "http://localhost:41800"
 DEFAULT_OUTPUT_DIR = "./renders"
 
 # Per-client Bearer token issued by the server admin (uv run font-render-clients add <id>)

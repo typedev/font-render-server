@@ -12,7 +12,7 @@ hintbench (`../hintbench`), and the Telegram bot (separate repo `../font-render-
 Docs: `README.md` (overview, commands), `docs/api.md`, `docs/auth.md`, `docs/admin.md`,
 `docs/deployment.md`, `docs/development.md` (code layout, render pipeline, pixel identity),
 `docs/distribution.md` (installer, release updates, developer mode — design, history),
-`docs/releasing.md` (release signing key, release steps).
+`docs/releasing.md` (release signing key, release steps), `docs/embedded.md` (embedded mode).
 Keep them in sync with code changes.
 
 ## Commands
@@ -47,7 +47,7 @@ No linter or build step beyond `uv sync`.
   `engines.py`, `gdi.py`, `dwrite_engine.py`, `sfnt.py` (in-memory family rename for GDI),
   `install.py` (install/repair/uninstall of the installed layout), `localadmin.py`
   (reset-admin, audit log), `updates.py` (release updates, job, rollback), `devmode.py`
-  (developer mode, /dev/*), `release_key.py` (TRUSTED_KEYS).
+  (developer mode, /dev/*), `release_key.py` (TRUSTED_KEYS), `embedded.py` (embedded mode for a desktop app).
 - `client/` — `font-render-client` package (uv workspace member, only `requests`): `font-render`,
   `-batch`, `-clients`, `login`; `deploy.py` packs dev deploys. Keep its version = the server's.
 - `src/font_render_tools/` — `pixel-check` (needs the server package).
@@ -85,7 +85,7 @@ never publish it, never push it here. Releases: tag `vX.Y.Z` → docs/releasing.
 
 The server host is `lurkbox` (192.168.1.3 / lurkbox.local), Windows 11, installed layout since
 2026-10-19 (`C:\Program Files\FontRender`, data `C:\ProgramData\FontRender`), NSSM service
-`FontRenderService` running as LocalSystem. Web admin: `http://lurkbox.local:8000/admin/`.
+`FontRenderService` running as LocalSystem. Web admin: `http://lurkbox.local:41800/admin/` (port 41800 since 2026-10-25).
 Developer mode is on there (client `alexander`, no expiry, 192.168.1.0/24).
 Deploy = commit (push optional), then `uv run font-render --deploy` (origin/main; push first)
 or `--deploy --local` (working tree) → job: uv sync, Chromium, selfcheck, switch, restart;

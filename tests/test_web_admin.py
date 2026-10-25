@@ -67,6 +67,13 @@ def test_login_rejects_render_token_and_rate_limits(c):
     assert "retry-after" in _login(c, LEGACY).headers
 
 
+def test_login_client_field_must_match_the_token(c):
+    token = _add(c, "boss", "admin")
+    for client, code in (("boss", 200), ("", 200), ("admin", 401)):
+        c.cookies.clear()  # a session cookie would make the next login a cross-origin POST
+        assert c.post("/admin/login", data={"client": client, "token": token}).status_code == code, client
+
+
 def test_admin_client_session_ends_on_rotate_and_disable(c):
     token = _add(c, "boss", "admin")
     assert _login(c, token).json()["subject"] == "boss"

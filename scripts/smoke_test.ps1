@@ -12,7 +12,7 @@ $ProgressPreference = 'SilentlyContinue'
 $Dist = (Resolve-Path $Dist).Path
 $App = "$env:ProgramFiles\FontRender"
 $Home_ = "$env:ProgramData\FontRender"
-$Base = 'http://127.0.0.1:8000'
+$Base = 'http://127.0.0.1:41800'
 $Font = "$env:WINDIR\Fonts\arial.ttf"
 
 function Check($ok, $what) {
@@ -125,18 +125,18 @@ if (Test-Path $App) {
 }
 Check (-not (Test-Path $App)) 'program folder removed'
 Check (-not (Test-Path $Home_)) 'data folder removed'
-# --- port 8000 taken by another program: install moves on to 8001; an explicit busy port stops ---
-$listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, 8000)
+# --- port 41800 taken by another program: install moves on to 41801; an explicit busy port stops ---
+$listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, 41800)
 $listener.Start()
 try {
     $out = Install-Release
-    Check ($out -match 'Port 8000 is in use by .*using port 8001') 'busy 8000: install picks 8001 and says why'
-    Check ((Invoke-RestMethod 'http://127.0.0.1:8001/health').status -eq 'ok') 'service answers on 8001'
-    $out = & powershell -NoProfile -ExecutionPolicy Bypass -File "$Dist\install.ps1" -From $Dist -Port 8000 2>&1 | Out-String
+    Check ($out -match 'Port 41800 is in use by .*using port 41801') 'busy 41800: install picks 41801 and says why'
+    Check ((Invoke-RestMethod 'http://127.0.0.1:41801/health').status -eq 'ok') 'service answers on 41801'
+    $out = & powershell -NoProfile -ExecutionPolicy Bypass -File "$Dist\install.ps1" -From $Dist -Port 41800 2>&1 | Out-String
     $code = $LASTEXITCODE
     Write-Host $out
-    Check ($code -ne 0 -and $out -match 'port 8000 is in use') 'explicit busy -Port 8000 is refused'
-    Check ((Invoke-RestMethod 'http://127.0.0.1:8001/health').status -eq 'ok') 'the installed service is untouched (still 8001)'
+    Check ($code -ne 0 -and $out -match 'port 41800 is in use') 'explicit busy -Port 41800 is refused'
+    Check ((Invoke-RestMethod 'http://127.0.0.1:41801/health').status -eq 'ok') 'the installed service is untouched (still 41801)'
 } finally {
     $listener.Stop()
 }

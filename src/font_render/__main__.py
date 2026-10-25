@@ -7,6 +7,7 @@ Subcommands for the machine the server runs on (docs/distribution.md):
     font-render-server uninstall        remove it [--purge | --keep-data] [--quiet]
     font-render-server reset-admin      new token for the admin client (elevated console)
     font-render-server dev-mode on|off|status   developer mode (elevated console)
+    font-render-server embedded         a private server for a desktop app (embedded.py)
     font-render-server selfcheck        import every module, check the browser
     font-render-server version
 """
@@ -66,6 +67,12 @@ def cmd_version(args) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    rest = sys.argv[1:] if argv is None else argv
+    if rest[:1] == ["embedded"]:
+        # before anything imports config: embedded mode sets the environment it reads
+        from .embedded import main as embedded_main
+        return embedded_main(rest[1:])
+
     from . import devmode, install, localadmin
 
     # A Windows console or pipe may use a legacy code page: never crash on a character

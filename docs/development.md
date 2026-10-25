@@ -17,7 +17,7 @@ development, not for real rendering comparisons.
 ```
 src/font_render/
   __main__.py     entry point: font-render-server [serve] (uvicorn on FONT_RENDER_HOST:PORT,
-                  0.0.0.0:8000), install, uninstall, reset-admin, dev-mode, selfcheck, version
+                  0.0.0.0:41800), install, uninstall, reset-admin, dev-mode, embedded, selfcheck, version
   install.py      install / repair / uninstall of the installed layout (service, firewall,
                   ACL, Start menu, Apps & features); side effects through Runner, DryRunner
                   for --dry-run and tests (docs/distribution.md)
@@ -26,6 +26,8 @@ src/font_render/
                   uv sync, Chromium, selfcheck, switch), rollback, prune, mark_healthy
   devmode.py      developer mode: devmode.json, expiry, allow_from, dev scope, /dev/*,
                   `dev-mode` subcommand
+  embedded.py     embedded mode: a desktop app's private server on 127.0.0.1, handshake on
+                  stdout, exit when stdin closes (docs/embedded.md)
   release_key.py  TRUSTED_KEYS: public keys that sign releases (docs/releasing.md)
   app.py          FastAPI app, lifespan (pool warm-up, janitor), /render, /fonts, /info, /health
   admin.py        /admin/* (client tokens, settings), /browsers/install, /update, /rollback
@@ -121,6 +123,7 @@ uv run pytest
 | `test_install.py` | data paths by layout, install / repair / import / uninstall plans (DryRunner), reset-admin, the launcher's trial starts and auto-revert |
 | `test_updates.py` | release choice by channel, signature check, the update pipeline against a fake GitHub (bad signature, tampered zip, failed steps), rollback, pruning, endpoints, the client following a job |
 | `test_devmode.py` | developer mode: 404 while off, dev scope not grantable, expiry, allow_from, deploys (fonts refused), back to a release, client packing |
+| `test_embedded.py` | embedded mode (a real process): handshake, the one in-memory token, no admin surface, exit when stdin closes |
 | `test_client.py` | `font-render login` config file, precedence, logout; client and server versions match |
 
 Tests use a system TTF (skip if none) and `fonttools` (dev dependency) to build an
@@ -134,8 +137,8 @@ point of the change. Capture a baseline before, compare after:
 ```bash
 uv run pixel-check capture --fonts renders/pixel_fonts/*                    # in-process
 uv run pixel-check compare --fonts renders/pixel_fonts/*
-uv run pixel-check capture --server http://SERVER:8000 --fonts ...         # a running server
-uv run pixel-check compare --server http://SERVER:8000 --fonts ...
+uv run pixel-check capture --server http://SERVER:41800 --fonts ...         # a running server
+uv run pixel-check compare --server http://SERVER:41800 --fonts ...
 ```
 
 It renders a fixed matrix (each font and all together × ClearType on/off × scale 1/1.5 ×

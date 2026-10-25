@@ -134,7 +134,7 @@ function showLogin() {
   for (const k in timers) { clearInterval(timers[k]); delete timers[k]; }
   $("#app").hidden = true;
   $("#login").hidden = false;
-  $("#login-token").focus();
+  ($("#login-client").value ? $("#login-token") : $("#login-client")).focus();
 }
 
 async function start() {
@@ -155,13 +155,19 @@ async function start() {
 $("#login-form").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   $("#login-error").textContent = "";
+  const client = $("#login-client").value.trim(), token = $("#login-token").value;
   try {
-    await api("/admin/login", { method: "POST", form: { token: $("#login-token").value } });
-    $("#login-token").value = "";
+    await api("/admin/login", { method: "POST", form: { client, token } });
+    // A password manager saves a username + password pair; PasswordCredential only in a secure context
+    if (window.PasswordCredential && window.isSecureContext && client) {
+      try { await navigator.credentials.store(new PasswordCredential({ id: client, password: token })); } catch { /* declined */ }
+    }
     await start();
+    // cleared only once the form is hidden, so Chrome sees a finished login with the values in it
+    $("#login-token").value = "";
   } catch (e) {
     if (!(e instanceof Unauthorized)) $("#login-error").textContent = e.message;
-    else $("#login-error").textContent = "Not an admin token";
+    else $("#login-error").textContent = client ? "Not an admin token of this client" : "Not an admin token";
   }
 });
 

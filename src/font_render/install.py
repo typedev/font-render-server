@@ -211,8 +211,9 @@ class DryRunner(Runner):
         return texts[-1] if texts else None
 
 
-DEFAULT_PORT = 8000
-PORT_SEARCH = 100  # 8000 busy → the first free one of 8001..8099
+DEFAULT_PORT = config.PORT_DEFAULT
+LEGACY_PORT = 8000  # the default up to 1.0.2: where a checkout without FONT_RENDER_PORT ran
+PORT_SEARCH = 100  # 41800 busy → the first free one of 41801..41899
 
 
 def port_owner(port: int, app: Path) -> dict | None:
@@ -241,7 +242,7 @@ def port_owner(port: int, app: Path) -> dict | None:
 def choose_port(requested: int | None, installed: int | None, app: Path, owner=port_owner,
                 say=print) -> int:
     """The port to install on. An explicit port must be free (or ours); otherwise keep the
-    installed one or 8000, moving on to the next free one if another program has it."""
+    installed one or DEFAULT_PORT, moving on to the next free one if another program has it."""
     if requested:
         o = owner(requested, app)
         if o and not o["ours"]:
@@ -262,7 +263,7 @@ def choose_port(requested: int | None, installed: int | None, app: Path, owner=p
 
 @dataclass
 class InstallOptions:
-    port: int | None = None  # None: keep the installed one, else 8000 (next free if busy)
+    port: int | None = None  # None: keep the installed one, else DEFAULT_PORT (next free if busy)
     firewall: bool = True
     channel: str = "stable"
     start: bool = True
@@ -351,6 +352,8 @@ def install(layout: Layout, source: Path, opts: InstallOptions, runner: Runner,
     env_source = (opts.import_from if opts.import_from else home) / ".env"
     if not installed_port and env_source.is_file():
         installed_port = _env_port(env_source.read_text(encoding="utf-8"))
+    if not installed_port and opts.import_from:
+        installed_port = LEGACY_PORT  # its clients know it there
     opts.port = choose_port(opts.port, installed_port, app, owner=port_owner_fn, say=runner.say)
 
     # 1. Data directory, administrators and SYSTEM only (token hashes, session key)
@@ -636,7 +639,7 @@ def add_parsers(sub) -> None:
     p.add_argument("--home", help=r"data directory (default: %%ProgramData%%\FontRender)")
     p.add_argument("--source", help=argparse.SUPPRESS)  # tests and --dry-run from a checkout
     p.add_argument("--port", type=int, default=None,
-                   help="HTTP port (default: the installed one, else 8000 or the next free one)")
+                   help=f"HTTP port (default: the installed one, else {DEFAULT_PORT} or the next free one)")
     p.add_argument("--no-firewall", action="store_true", help="do not add the firewall rule")
     p.add_argument("--channel", choices=("stable", "beta"), default="stable")
     p.add_argument("--no-start", action="store_true", help="do not start the service")

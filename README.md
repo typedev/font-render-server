@@ -41,7 +41,7 @@ admin token.
 
 ```bash
 uv tool install font-render-client           # from PyPI (or: pipx install font-render-client)
-font-render login http://SERVER:8000          # asks for the token you got from the server's admin
+font-render login http://SERVER:41800          # asks for the token you got from the server's admin
 font-render font_a.ttf font_b.otf             # comparison waterfall -> ./renders/
 font-render font.ttf --plain --zoom 4         # text only, 4x nearest-neighbor
 font-render --info                            # server info + which client you are
@@ -53,7 +53,7 @@ font-render --info                            # server info + which client you a
 uv sync
 cp .env.example .env   # FONT_RENDER_SERVER, FONT_RENDER_CLIENT_TOKEN (and FONT_RENDER_ADMIN_TOKEN for admin)
 uv run font-render --info
-# web admin: http://SERVER:8000/admin/ (log in with an admin token)
+# web admin: http://SERVER:41800/admin/ (log in with an admin token)
 ```
 
 ## Commands
@@ -102,6 +102,7 @@ Render options of `font-render`:
 - [docs/deployment.md](docs/deployment.md) — Windows server setup, service, updates, logs, configuration
 - [docs/development.md](docs/development.md) — code layout, tests, pixel identity, benchmarks
 - [docs/releasing.md](docs/releasing.md) — release signing key, making a release
+- [docs/embedded.md](docs/embedded.md) — embedded mode: a private server for a desktop app (hintbench on Windows)
 - [docs/distribution.md](docs/distribution.md) — how install, release updates, uninstall and developer mode work (design)
 - [CHANGELOG.md](CHANGELOG.md) — releases
 - [TODO.md](TODO.md) — planned work

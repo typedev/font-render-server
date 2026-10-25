@@ -27,12 +27,14 @@ SCOPES = ("render", "admin")
 
 
 class ClientRegistry:
-    def __init__(self, path: Path):
-        self.path = path
+    def __init__(self, path: Path | None):
+        self.path = path  # None: in memory only (embedded mode), self.data as set
         self._stamp: tuple[int, int] | None = None
         self.data: dict = {"settings": dict(DEFAULT_SETTINGS), "clients": {}}
 
     def _reload(self):
+        if self.path is None:
+            return
         try:
             st = self.path.stat()
             stamp = (st.st_mtime_ns, st.st_size)
@@ -74,6 +76,8 @@ class ClientRegistry:
         return json.dumps(self.data, indent=2, sort_keys=True)
 
     def save(self):
+        if self.path is None:
+            return
         tmp = self.path.with_suffix(".tmp")
         tmp.write_text(self.dumps(), encoding="utf-8")
         tmp.replace(self.path)

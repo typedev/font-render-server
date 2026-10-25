@@ -64,7 +64,7 @@ async def admin_static(name: str):
 
 
 @router.post("/admin/login")
-async def admin_login(request: Request, token: str = Form("")):
+async def admin_login(request: Request, token: str = Form(""), client: str = Form("")):
     ip = (request.client.host if request.client else "-")
     now = time.monotonic()
     failures = _login_failures.setdefault(ip, deque())
@@ -75,6 +75,9 @@ async def admin_login(request: Request, token: str = Form("")):
         resp.headers["Retry-After"] = str(int(LOGIN_WINDOW_S - (now - failures[0])) + 1)
         return resp
     subject = auth.login_subject(token.strip())
+    # the optional client id (the page's username field, for password managers) must match the token
+    if subject is not None and client.strip() and client.strip() != subject:
+        subject = None
     if subject is None:
         failures.append(now)
         config.log.warning("web admin: failed login from %s", ip)

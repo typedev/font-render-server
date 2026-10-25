@@ -41,7 +41,7 @@ A lost token cannot be recovered (only its hash is stored) — `rotate` it.
 
 | Client | Where the token goes |
 |--------|----------------------|
-| `font-render` (client package) | `font-render login http://SERVER:8000` (asks for it) — check with `font-render --info` (`Client: <id>`) |
+| `font-render` (client package) | `font-render login http://SERVER:41800` (asks for it) — check with `font-render --info` (`Client: <id>`) |
 | This repo's tools in a checkout | `.env`: `FONT_RENDER_CLIENT_TOKEN=<token>` |
 | hintbench | ⚙ Settings → token; it shows "signed in as <id>" |
 | font-render-bot | its `.env` on the bot's host: `FONT_RENDER_CLIENT_TOKEN=<token>`, then restart the bot (`uv run python bot_admin.py --restart` in the bot repo, or `nssm restart FontRenderBot`) |

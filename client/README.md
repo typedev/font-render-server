@@ -6,7 +6,7 @@ headless Chromium, get PNG waterfalls back.
 
 ```bash
 uv tool install font-render-client          # or: pipx install font-render-client
-font-render login http://studio-pc:8000      # asks for your token (from the server's admin)
+font-render login http://studio-pc:41800      # asks for your token (from the server's admin)
 font-render MyFont.ttf                       # waterfall 9-24 ppem -> ./renders/
 font-render A.ttf B.ttf --ppem 9-40          # compare fonts
 font-render MyFont.ttf --plain --zoom 4      # text only, 4x nearest-neighbour
@@ -30,7 +30,7 @@ disk.
 Every command takes `--server URL` (`-s`) to talk to another server than the saved one.
 
 The server address is the server computer's name or IP — the install summary on the server
-lists them (`http://STUDIO-PC:8000`, `http://studio-pc.local:8000`, `http://192.168.1.23:8000`).
+lists them (`http://STUDIO-PC:41800`, `http://studio-pc.local:41800`, `http://192.168.1.23:41800`).
 
 Settings can also come from the environment or a `.env` file in the current directory:
 `FONT_RENDER_SERVER`, `FONT_RENDER_CLIENT_TOKEN`, `FONT_RENDER_ADMIN_TOKEN`,

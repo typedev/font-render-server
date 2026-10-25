@@ -71,10 +71,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.add_middleware(auth.AuthMiddleware)
-app.include_router(admin.router)
-app.include_router(web.router)
 app.include_router(glyphs.router)
-app.include_router(devmode.router)
+if not config.EMBEDDED:  # the app that started an embedded server owns it: no admin, updates, dev mode
+    app.include_router(admin.router)
+    app.include_router(web.router)
+    app.include_router(devmode.router)
 
 
 def _apply_zoom(png_bytes: bytes, zoom: int) -> bytes:

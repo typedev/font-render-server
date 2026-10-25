@@ -6,7 +6,7 @@ Automatically matches fonts between two directories (sources vs output) and
 renders every combination of browser × ClearType mode via the render server.
 
 Usage:
-    uv run font-render-batch /path/to/ttf_sources /path/to/ttf_output --server http://host:8000
+    uv run font-render-batch /path/to/ttf_sources /path/to/ttf_output --server http://host:41800
     uv run font-render-batch /path/to/ttf_sources /path/to/ttf_output --dry-run
 """
 
@@ -27,7 +27,7 @@ from ._env import load_env
 
 load_env()
 
-DEFAULT_SERVER = "http://localhost:8000"
+DEFAULT_SERVER = "http://localhost:41800"
 DEFAULT_OUTPUT_DIR = "./renders"
 ALL_BROWSERS = ["chromium", "firefox", "webkit"]
 CLEARTYPE_MODES = [("cleartype", True), ("grayscale", False)]
@@ -147,7 +147,7 @@ def main():
         epilog="""
 Examples:
   %(prog)s ttf_sources/ ttf_output/ --dry-run
-  %(prog)s ttf_sources/ ttf_output/ --server http://studio-pc:8000
+  %(prog)s ttf_sources/ ttf_output/ --server http://studio-pc:41800
   %(prog)s ttf_sources/ ttf_output/ --browsers chromium firefox
   %(prog)s ttf_sources/ ttf_output/ --ppem 12-16
         """,

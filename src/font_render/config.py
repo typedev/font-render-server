@@ -40,8 +40,13 @@ if _env_file.is_file():
             _k, _, _v = _line.partition("=")
             os.environ.setdefault(_k.strip(), _v.strip())
 
+# Embedded mode (embedded.py): one desktop app's private server, set before this module loads
+EMBEDDED = os.environ.get("FONT_RENDER_EMBEDDED") == "1"
+
 HOST = os.environ.get("FONT_RENDER_HOST", "0.0.0.0")
-PORT = int(os.environ.get("FONT_RENDER_PORT", "8000"))
+# 41800: below the dynamic range (Windows/Hyper-V reserve blocks there), not a common dev port
+PORT_DEFAULT = 41800
+PORT = int(os.environ.get("FONT_RENDER_PORT", str(PORT_DEFAULT)))
 
 # Legacy admin token (form field `token` on admin endpoints)
 UPDATE_TOKEN = os.environ.get("FONT_RENDER_TOKEN", "")
@@ -69,7 +74,8 @@ OVERLOAD_WAIT_S = float(os.environ.get("OVERLOAD_WAIT_S", "5"))
 
 log = logging.getLogger("font_render")
 if not log.handlers:
-    _handler = logging.StreamHandler(sys.stdout)
+    # embedded: stdout carries only the handshake line, the parent need not drain it
+    _handler = logging.StreamHandler(sys.stderr if EMBEDDED else sys.stdout)
     _handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
     log.addHandler(_handler)
     log.setLevel(logging.INFO)

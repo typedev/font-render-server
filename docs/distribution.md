@@ -168,7 +168,7 @@ irm https://github.com/typedev/font-render-server/releases/latest/download/insta
 For cautious admins ([deployment.md](deployment.md#install) shows both): download
 `install.ps1`, compare its SHA256 with `SHA256SUMS` on the release page, read it, run it.
 
-Parameters: `-Version` (default: the release the script came from), `-Port` (8000),
+Parameters: `-Version` (default: the release the script came from), `-Port` (41800),
 `-NoFirewall`, `-Channel stable|beta`, `-InstallDir`, `-DataDir`, `-From` (assets from a
 folder), `-Force` (allow an older version), `-ImportFrom` (data of a checkout install).
 
@@ -207,7 +207,7 @@ What the script does (kept small; everything else is Python and tested):
 
 ```
 Font Render Service 1.2.0 installed and running
-  Web admin:   http://STUDIO-PC:8000/admin/
+  Web admin:   http://STUDIO-PC:41800/admin/
   Admin token: …   (copied to the clipboard)
                shown only once - keep it in a password manager
   Lost the token? Start > Font Render > Reset admin token
@@ -382,7 +382,7 @@ A light distribution `font-render-client` (dependency: `requests`) in the same r
 
 ```bash
 uv tool install font-render-client
-font-render login http://studio-pc:8000          # asks for the token, checks it, saves it in
+font-render login http://studio-pc:41800          # asks for the token, checks it, saves it in
                                                  # ~/.config/font-render/config.toml
                                                  # (%APPDATA%\font-render on Windows)
 font-render FONT.ttf

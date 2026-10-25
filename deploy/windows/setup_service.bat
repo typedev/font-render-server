@@ -264,6 +264,6 @@ echo    nssm restart %SERVICE_NAME%
 echo    nssm remove %SERVICE_NAME% confirm
 echo.
 echo  To update remotely (from Linux):
-echo    uv run font-render --update --server http://THIS_PC:8000
+echo    uv run font-render --update --server http://THIS_PC:41800
 echo.
 pause

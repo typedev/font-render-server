@@ -20,6 +20,7 @@ import os
 import socket
 import sys
 import threading
+import time
 from pathlib import Path
 
 CLIENT_ID = "local"
@@ -38,6 +39,10 @@ def _watch_stdin(server) -> None:
     except (OSError, ValueError, AttributeError):
         pass
     print("embedded: stdin closed, exiting", file=sys.stderr, flush=True)
+    # Asked to exit during start-up, uvicorn skips its shutdown (the lifespan's: browsers
+    # closed) and the browser launch left running can hang the exit (Python 3.12)
+    while not server.started:
+        time.sleep(0.05)
     server.should_exit = True
 
 

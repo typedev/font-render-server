@@ -21,14 +21,22 @@ if _installed is not None and not (_installed / "home").is_file():
     _installed = None
 _app = os.environ.get("FONT_RENDER_APP") or _installed
 APP = Path(_app) if _app else None
+# A checkout (or an installed version, which is one): a source tree. A package installed
+# from PyPI (embedded mode for hintbench) is not, and SERVICE_DIR is then inside the venv.
+_source_tree = (SERVICE_DIR / "pyproject.toml").is_file()
 # Data directory: clients, settings, stats, logs. FONT_RENDER_HOME in an installed layout
-# (C:\ProgramData\FontRender); in a checkout, the repository root.
+# (C:\ProgramData\FontRender); in a checkout, the repository root; for a package, the
+# user's data folder (%LOCALAPPDATA%\FontRender, ~/.local/share/font-render).
 if os.environ.get("FONT_RENDER_HOME"):
     HOME = Path(os.environ["FONT_RENDER_HOME"])
 elif _installed is not None:
     HOME = Path((_installed / "home").read_text(encoding="utf-8").strip())
-else:
+elif _source_tree:
     HOME = SERVICE_DIR
+elif os.environ.get("LOCALAPPDATA"):
+    HOME = Path(os.environ["LOCALAPPDATA"]) / "FontRender"
+else:
+    HOME = Path.home() / ".local" / "share" / "font-render"
 LAST_GOOD_COMMIT = HOME / ".last_good_commit"
 
 # Load .env file (KEY=VALUE lines) if it exists

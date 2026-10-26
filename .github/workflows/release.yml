@@ -110,7 +110,7 @@ jobs:
           gh release create "v$VERSION" dist/* --repo "$GITHUB_REPOSITORY" \
             --title "Font Render Service $VERSION" --generate-notes $pre
 
-  # The client package on PyPI, by trusted publishing (no token; docs/releasing.md#pypi)
+  # The client and server packages on PyPI, by trusted publishing (no token; docs/releasing.md#pypi)
   pypi:
     needs: [build, publish]
     if: startsWith(github.ref, 'refs/tags/v') && github.repository == 'typedev/font-render-server'
@@ -124,6 +124,8 @@ jobs:
         with:
           version: '0.12.21'
       - run: uv build --package font-render-client --out-dir pypi-dist
+      # the server as a wheel only (embedded mode for hintbench); service installs use the release zip
+      - run: uv build --package font-render-server --wheel --out-dir pypi-dist
       - uses: pypa/gh-action-pypi-publish@v1.14.2
         with:
           packages-dir: pypi-dist

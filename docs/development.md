@@ -146,7 +146,10 @@ plain/full × geometry on/off) and compares sha256 digests. Baselines are stored
 `renders/pixel_baseline/` (platform-specific, not committed); fonts are not in the repo.
 
 If a change does alter pixels (launch flags, page HTML/CSS, Chromium/Playwright upgrade),
-bump `RENDER_VERSION` in `config.py` — clients key their render caches on it.
+bump `RENDER_VERSION` in `config.py` — clients key their render caches on it. Playwright is
+pinned exactly in `pyproject.toml` (`playwright==…`, the same version as `uv.lock`, checked by
+`test_client.py`): it fixes the Chromium build, also for the PyPI package that hintbench
+installs. An upgrade changes the pin, `uv lock`, and `RENDER_VERSION`.
 
 ## Benchmarks
 

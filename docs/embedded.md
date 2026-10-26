@@ -2,7 +2,9 @@
 
 A private render server for one desktop app on the same Windows machine (hintbench), so it
 renders with the machine's own DirectWrite/GDI without a network, a service or admin rights.
-Code: `src/font_render/embedded.py`.
+Code: `src/font_render/embedded.py`. The app gets it from PyPI (`font-render-server`, a wheel;
+dependency marker `sys_platform == 'win32'`); data of a package install without `--home`:
+`%LOCALAPPDATA%\FontRender`.
 
 ```
 font-render-server embedded [--home DIR] [--port N] [--keep-running]

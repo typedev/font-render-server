@@ -59,7 +59,7 @@ No linter or build step beyond `uv sync`.
 
 - **Pixel identity**: server changes must keep PNGs byte-identical — run `pixel-check compare`
   (local, and `--server` after deploy; on Windows it also covers /glyphs per engine) against a
-  baseline captured before the change. If pixels are meant to change (launch flags, page HTML/CSS, Chromium/Playwright upgrade), bump
+  baseline captured before the change. If pixels are meant to change (launch flags, page HTML/CSS, Chromium/Playwright upgrade — Playwright is pinned exactly in pyproject.toml), bump
   `RENDER_VERSION` in `config.py` (native engines: their `render_version` attribute); hintbench
   keys its cache on it.
 - **Font hygiene**: fonts are unreleased — never write them to disk (uploads stay in memory:

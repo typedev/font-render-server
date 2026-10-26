@@ -90,3 +90,16 @@ def test_client_and_server_versions_match():
     server = tomllib.loads((root / "pyproject.toml").read_text())["project"]["version"]
     client = tomllib.loads((root / "client" / "pyproject.toml").read_text())["project"]["version"]
     assert server == client, "bump client/pyproject.toml together with pyproject.toml"
+    deps = tomllib.loads((root / "pyproject.toml").read_text())["project"]["dependencies"]
+    assert f"font-render-client=={server}" in deps, "the server pins the client of its own version"
+
+
+def test_playwright_pinned_as_locked():
+    """The server pins Playwright exactly (it fixes the Chromium build, so the pixels): the
+    pin and uv.lock agree, so a package installed from PyPI renders with the tested Chromium."""
+    root = Path(__file__).resolve().parents[1]
+    deps = tomllib.loads((root / "pyproject.toml").read_text())["project"]["dependencies"]
+    pins = [d for d in deps if d.startswith("playwright")]
+    assert len(pins) == 1 and pins[0].startswith("playwright=="), pins
+    locked = {p["name"]: p["version"] for p in tomllib.loads((root / "uv.lock").read_text())["package"]}
+    assert pins[0].removeprefix("playwright==") == locked["playwright"]

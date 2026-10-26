@@ -68,16 +68,17 @@ Then delete the local file (the password manager has it):
 shred -u ~/release-signing-key.txt    # macOS: rm -P
 ```
 
-## 4b. PyPI (once, for the client package)
+## 4b. PyPI (once per package)
 
-The release workflow publishes `font-render-client` to PyPI by **trusted publishing**: PyPI
-trusts this repository's workflow, no API token is stored anywhere. On
-[pypi.org](https://pypi.org) (log in, 2FA on) → **Your projects → Publishing → Add a new
-pending publisher** → GitHub:
+The release workflow publishes `font-render-client` and `font-render-server` (a wheel only:
+the server as a library and its embedded mode, for hintbench; services install from the
+release zip) to PyPI by **trusted publishing**: PyPI trusts this repository's workflow, no API
+token is stored anywhere. On [pypi.org](https://pypi.org) (log in, 2FA on) → **Your projects →
+Publishing → Add a new pending publisher** → GitHub, once for each package:
 
 | Field | Value |
 |---|---|
-| PyPI project name | `font-render-client` |
+| PyPI project name | `font-render-client`, then `font-render-server` |
 | Owner | `typedev` |
 | Repository name | `font-render-server` |
 | Workflow name | `release.yml` |
@@ -113,7 +114,7 @@ environment secret). A server only installs releases signed by a key in the list
    run → **Review deployments** → `release` → **Approve and deploy**. Check that the run is for
    the tag you just pushed before approving.
 5. The workflow signs `SHA256SUMS`, publishes the GitHub Release, then `font-render-client`
-   on PyPI. Installed servers see the release at their next update check (web admin →
+   and `font-render-server` on PyPI. Installed servers see the release at their next update check (web admin →
    Maintenance → Check for updates shows it at once).
 6. Update lurkbox (`font-render --update`) and run `pixel-check compare --server`.
 

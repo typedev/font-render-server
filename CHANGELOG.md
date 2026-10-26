@@ -10,6 +10,9 @@
   token, empty = any), so Chrome saves and fills the admin token.
 - Embedded mode (`font-render-server embedded`): a private server for a desktop app on
   127.0.0.1, token in memory, handshake on stdout, exits with its parent (docs/embedded.md).
+- `font-render-server` on PyPI (a wheel, for embedded mode in hintbench). Playwright is pinned
+  exactly (1.58.0), so a package install renders with the tested Chromium; a package install
+  keeps its data in the user's folder (`%LOCALAPPDATA%\FontRender`), not in the venv.
 
 ## 1.0.2 — 2026-10-19
 

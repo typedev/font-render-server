@@ -337,3 +337,15 @@ def test_page_features():
     assert "font-feature-settings" not in plain.style
     assert feat.style.count('font-feature-settings: "kern" 1, "liga" 0;') == 2
     assert feat.body == plain.body and feat.fonts_key == plain.fonts_key
+
+
+def test_place_design_reference():
+    """A variable face at a location: the adjustment is taken against the advance there."""
+    class F:
+        upem, advances = 1000, [0, 500, 600]
+    own = [11.0, 13.0]                                     # px at the location, 20 ppem
+    same = place(F, [1, 2], 20, own, Positions([550, 650], None), False, design=[550, 650])
+    assert same == (own, None)
+    kern = place(F, [1, 2], 20, own, Positions([500, 650], None), True, design=[550, 650])
+    assert kern[0] == [10.0, 13.0]
+    assert place(F, [1, 2], 20, own, Positions([550, 650], None), False)[0] == [12.0, 14.0]

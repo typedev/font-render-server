@@ -349,6 +349,13 @@ class DWriteEngine:
             advances = [float(round(a)) for a in advances]
         return math.ceil(fm.ascent * scale - 1e-6), math.ceil(fm.descent * scale - 1e-6), advances
 
+    def _design_advances(self, face: Com, gids) -> list[float]:
+        """Design advances (font units) of the face, i.e. at its axis location (HVAR applied)."""
+        gm = (DWRITE_GLYPH_METRICS * len(gids))()
+        face.call(10, HR, (POINTER(c_uint16), (c_uint16 * len(gids))(*gids)), (c_uint32, len(gids)),
+                  (POINTER(DWRITE_GLYPH_METRICS), gm), (wintypes.BOOL, False))  # GetDesignGlyphMetrics
+        return [float(m.advanceWidth) for m in gm]
+
     def _effective(self, fx: _Factory, face: Com, ppem: float, params: dict) -> tuple[dict, dict]:
         """For rendering_mode=default: ask DirectWrite (IDWriteFontFace3::GetRecommendedRenderingMode,
         which reads gasp) for the mode and grid fit at this size, and draw with exactly those, so
@@ -423,8 +430,11 @@ class DWriteEngine:
             _a, _d, advances = self._metrics(face, font, ppem, gids, params["measuring_mode"])
             glyph_offsets = None
             if positions is not None:
+                # the reference is the advance at the location: hintbench sends hmtx + HVAR there
+                design = self._design_advances(face, gids) if params["axes"] else None
                 advances, glyph_offsets = place(font, gids, ppem, advances, positions,
-                                                whole=params["measuring_mode"] != "natural")
+                                                whole=params["measuring_mode"] != "natural",
+                                                design=design)
             offsets = pens(advances)
             size = math.ceil(ppem)
             margin = 2 * size + 16

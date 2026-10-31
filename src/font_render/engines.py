@@ -52,15 +52,18 @@ class Positions:
     offsets: list[tuple[float, float]] | None
 
 
-def place(font, gids, ppem: float, own: list[float], positions: Positions, whole: bool):
+def place(font, gids, ppem: float, own: list[float], positions: Positions, whole: bool,
+          design: list[float] | None = None):
     """Device advances and offsets for a shaped run, as a shaper places it on a hinted run: the
-    engine's own advance plus the shaper's adjustment (given advance - hmtx advance) scaled to
+    engine's own advance plus the shaper's adjustment (given advance - design advance) scaled to
     ppem, and the offsets scaled. whole: rounded to whole pixels (GDI, DirectWrite GDI measuring).
+    design: per glyph, the design advance at the face's axis location (hmtx + HVAR); default hmtx.
     -> ([advance px], [(dx, dy) px] | None)"""
     scale = ppem / font.upem
     snap = (lambda v: float(math.floor(v + 0.5))) if whole else (lambda v: v)
-    advances = [o + snap((a - font.advances[g]) * scale)
-                for g, o, a in zip(gids, own, positions.advances)]
+    design = design if design is not None else [font.advances[g] for g in gids]
+    advances = [o + snap((a - d) * scale)
+                for o, a, d in zip(own, positions.advances, design)]
     offsets = None if positions.offsets is None else [
         (snap(dx * scale), snap(dy * scale)) for dx, dy in positions.offsets]
     return advances, offsets

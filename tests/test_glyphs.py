@@ -164,6 +164,19 @@ def test_run_positions(c, fonts):
     assert a.json()["image"] == b.json()["image"]
 
 
+def test_compose_fractional_offsets():
+    """DirectWrite natural measuring: fractional advances and dy still give an integer canvas."""
+    ink = Image.new("RGB", (3, 10), (0, 0, 0))
+    cells = [Cell(1, ink, 0, -10, 5.5), Cell(2, ink, 0, -10, 5.5)]
+    canvas = Image.new("RGB", (100, 100), (255, 255, 255))
+    run = (canvas, 20, 60, [0.0, 5.5], [5.5, 5.5], [(0.0, 0.0), (0.25, 4.7)])
+    img, [row] = glyphs.compose([{"ppem": 12, "ascent": 11, "descent": 3, "cells": cells,
+                                  "run": run}], 4, (255, 255, 255))
+    g = row["glyphs"]
+    assert isinstance(img.height, int) and g[1]["x0"] - g[0]["x0"] == 5.75
+    assert row["baseline_y"] - g[1]["y0"] == pytest.approx(4.7)
+
+
 def test_run_positions_validation(c, fonts):
     [fid] = _upload(c, "alice", ("a.ttf", fonts[0]))
     run = dict(gids="1,2", ppem="12", layout="run")

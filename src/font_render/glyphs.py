@@ -147,8 +147,8 @@ def compose(rows: list[dict], gap: int, background) -> tuple[Image.Image, list[d
         offsets = run[5] if run is not None else None
         dys = [dy for _dx, dy in offsets] if offsets else [0] * len(cells)
         inked = [(c, dy) for c, dy in zip(cells, dys) if c.img is not None]
-        asc = max([row["ascent"], 0] + [dy - c.top for c, dy in inked])
-        desc = max([row["descent"], 0] + [c.top + c.img.height - dy for c, dy in inked])
+        asc = math.ceil(max([row["ascent"], 0] + [dy - c.top for c, dy in inked]))  # dy: fractional
+        desc = math.ceil(max([row["descent"], 0] + [c.top + c.img.height - dy for c, dy in inked]))
         if run is None:
             xs, x = [], gap
             for c in cells:

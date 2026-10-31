@@ -1,6 +1,20 @@
 # Changelog
 
-## Unreleased
+## 1.2.0 — 2026-10-31
+
+API 4 (`/info` `"api": 4`); renders without the new fields are byte-identical to 1.1.0.
+
+- `POST /render` `features`: OpenType features for the text rows as CSS
+  `font-feature-settings` (`"kern" 1, "liga" 0, "ss01"`); empty = browser defaults.
+  `/info` `render.features`.
+- `POST /glyphs` `layout=run` `advances` / `offsets` (font units, as from HarfBuzz): draws a
+  shaped run the way an application does — the engine's hinted advance plus the shaper's
+  adjustment; GDI through `lpDx` / `ETO_PDY` in whole pixels, DirectWrite through
+  `glyphAdvances` / `glyphOffsets` (whole pixels in GDI measuring modes; for a variable font the
+  adjustment is taken against the advance at the axis location). `glyphs[].x0` / `y0` are the
+  origins drawn. `/info` `glyphs.run_positions`. See docs/api.md#shaped-runs.
+
+## 1.1.0 — 2026-10-26
 
 - Default port 41800 instead of 8000 (8000 is a common development port; 41800 is below the
   range where Windows and Hyper-V reserve ports). Existing installs keep their port on update

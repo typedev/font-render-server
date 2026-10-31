@@ -1,6 +1,6 @@
 [project]
 name = "font-render-server"
-version = "1.1.0"
+version = "1.2.0"
 description = "Font rendering comparison service using Windows DirectWrite (headless Chromium)"
 readme = "README.md"
 license = "MIT"
@@ -18,7 +18,7 @@ dependencies = [
     "brotli>=1.2.0",
     "cryptography>=46",
     "packaging>=25",
-    "font-render-client==1.1.0",  # = this version (test_client checks)
+    "font-render-client==1.2.0",  # = this version (test_client checks)
 ]
 
 [project.urls]

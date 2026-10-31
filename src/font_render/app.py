@@ -123,7 +123,7 @@ async def info(request: Request):
     ns = _namespace(request)
     return {
         "service": "Font Render Service",
-        "api": 3,
+        "api": 4,
         "version": git["commit"],
         "release": __version__,
         "layout": "checkout" if config.APP is None else "installed",
@@ -165,7 +165,9 @@ async def info(request: Request):
             "default_width": 1920,
             "default_scale": 1.0,
             "geometry": True,
+            "features": True,
         },
+        "glyphs": {"run_positions": True},
     }
 
 
@@ -289,6 +291,9 @@ async def render(
     line_height: float = Form(0, description="CSS line-height for rows (0=browser default)"),
     variations: str = Form("", description="Variable-font location per font, ';'-separated in font "
                                            "order, e.g. 'wght=350.5,wdth=87;;wght=700' (empty = none)"),
+    features: str = Form("", description="OpenType features for the text rows, as CSS "
+                                         "font-feature-settings: '\"kern\" 1, \"liga\" 0, \"ss01\"' "
+                                         "(empty = browser defaults)"),
 ):
     timing: dict = {"_start": time.perf_counter(), "_state": request.scope["state"]}
     fonts = fonts or []
@@ -367,6 +372,11 @@ async def render(
     locations = _resolve_variations(variations, named)
     if isinstance(locations, JSONResponse):
         return _timed(timing, locations)
+    try:
+        features = page.parse_features(features)
+    except ValueError as e:
+        return _timed(timing, JSONResponse(
+            status_code=400, content={"error": "bad_features", "detail": str(e)}))
 
     font_names = [name for name, _ in named]
     font_data = [(os.path.splitext(name)[1].lower() or ".ttf", data) for name, data in named]
@@ -385,6 +395,7 @@ async def render(
         zoom=zoom,
         line_height=line_height,
         variations=locations,
+        features=features,
     )
     timing["fonts"] = time.perf_counter() - timing["_start"]
 
@@ -425,6 +436,7 @@ async def render(
                 "device_scale": scale,
                 "zoom": zoom,
                 "rows": geo_rows,
+                **({"features": features} if features else {}),
                 **({"fonts": [
                     {"index": i, "sha256": hashlib.sha256(data).hexdigest(), "variations": loc}
                     for i, ((_n, data), loc) in enumerate(zip(named, locations), 1)

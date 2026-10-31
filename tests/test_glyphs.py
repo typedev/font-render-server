@@ -14,7 +14,7 @@ from fontTools.ttLib import TTFont
 from PIL import Image
 
 from font_render import glyphs, sfnt
-from font_render.engines import Cell
+from font_render.engines import Cell, Positions, pens, place
 from test_font_cache import _upload, c, fonts  # noqa: F401  (fixtures)
 
 
@@ -46,17 +46,20 @@ class FakeEngine:
     def cells(self, font, gids, ppem, params, background, ink):
         return int(ppem), int(ppem) // 4, [self._cell(g, ppem, ink) for g in gids]
 
-    def run(self, font, gids, ppem, params, background, ink):
+    def run(self, font, gids, ppem, params, background, ink, positions=None):
         cells = [self._cell(g, ppem, ink) for g in gids]
-        offsets, x = [], 0
-        for cell in cells:
-            offsets.append(x)
-            x += cell.advance
-        img = Image.new("RGB", (x + 40, 4 * int(ppem) + 20), background)
-        for o, cell in zip(offsets, cells):
+        advances, offsets = [c.advance for c in cells], None
+        if positions is not None:
+            advances, offsets = place(font, gids, ppem, advances, positions, whole=True)
+            advances = [int(a) for a in advances]
+        pen = [int(p) for p in pens(advances)]
+        off = [(int(dx), int(dy)) for dx, dy in offsets] if offsets else [(0, 0)] * len(gids)
+        pen_x, base_y = 100, 2 * int(ppem) + 100
+        img = Image.new("RGB", (pen[-1] + advances[-1] + 200, 4 * int(ppem) + 200), background)
+        for p, (dx, dy), cell in zip(pen, off, cells):
             if cell.img is not None:
-                img.paste(cell.img, (10 + o + cell.left, 2 * int(ppem) + cell.top))
-        return img, 10, 2 * int(ppem), offsets
+                img.paste(cell.img, (pen_x + p + dx + cell.left, base_y - dy + cell.top))
+        return img, pen_x, base_y, pen, advances, offsets and off
 
 
 @pytest.fixture(autouse=True)
@@ -125,6 +128,53 @@ def test_run_layout_uses_engine_offsets(c, fonts):
     xs = [g["x0"] for g in row["glyphs"]]
     advances = [g["advance"] for g in row["glyphs"]]
     assert xs[1] - xs[0] == advances[0] and xs[2] - xs[1] == advances[1]
+
+
+def test_run_positions(c, fonts):
+    """advances/offsets in font units: own advance + (given - hmtx) scaled, offsets scaled,
+    rounded for whole-pixel engines; x0/y0 are the origins used, boxes follow the glyphs."""
+    [fid] = _upload(c, "alice", ("a.ttf", fonts[0]))
+    font = TTFont(io.BytesIO(fonts[0]))
+    upem, order = font["head"].unitsPerEm, font.getGlyphOrder()
+    hmtx = [font["hmtx"][order[g]][0] for g in (1, 2, 3)]
+    plain = _post(c, "alice", fid, gids="1,2,3", ppem="20", layout="run")
+    kern = -upem // 10                                    # -2 px at 20 ppem
+    r = _post(c, "alice", fid, gids="1,2,3", ppem="20", layout="run",
+              advances=f"{hmtx[0] + kern},{hmtx[1]},{hmtx[2]}",
+              offsets=f"0:0,0:{upem // 4},{upem // 20}:0")  # glyph 2 up 5 px, glyph 3 right 1 px
+    assert r.status_code == 200, r.text
+    geo = r.json()["geometry"]
+    assert geo["params"]["positions"] == "advances+offsets"
+    [row], [prow] = geo["rows"], plain.json()["geometry"]["rows"]
+    g, pg = row["glyphs"], prow["glyphs"]
+    assert g[0]["advance"] == pg[0]["advance"] - 2 and g[1]["advance"] == pg[1]["advance"]
+    assert g[1]["x0"] - g[0]["x0"] == g[0]["advance"]
+    assert g[2]["x0"] - g[1]["x0"] == g[1]["advance"] + 1
+    assert row["baseline_y"] - g[1]["y0"] == 5 and g[0]["y0"] == row["baseline_y"]
+    assert g[1]["box"][1] - g[1]["y0"] == pg[1]["box"][1] - prow["baseline_y"]
+    img = _image(r)
+    assert img.crop(g[1]["box"]).tobytes() == _image(plain).crop(pg[1]["box"]).tobytes()
+    assert "y0" not in pg[0]
+
+    only = _post(c, "alice", fid, gids="1,2", ppem="20", layout="run",
+                 advances=f"{hmtx[0]},{hmtx[1]}").json()["geometry"]
+    assert only["params"]["positions"] == "advances" and "y0" not in only["rows"][0]["glyphs"][0]
+    a = _post(c, "alice", fid, gids="1,2,3", ppem="20", layout="run", advances="1,2,3")
+    b = _post(c, "alice", fid, gids="1,2,3", ppem="20", layout="run", advances="1,2,3")
+    assert a.json()["image"] == b.json()["image"]
+
+
+def test_run_positions_validation(c, fonts):
+    [fid] = _upload(c, "alice", ("a.ttf", fonts[0]))
+    run = dict(gids="1,2", ppem="12", layout="run")
+    for bad in (dict(advances="500"), dict(advances="500,500", offsets="0:0"),
+                dict(offsets="0:0,0:0"), dict(advances="500,x"), dict(advances="500,500",
+                offsets="0:0,5"), dict(advances="5e3,1")):
+        r = _post(c, "alice", fid, **run, **bad)
+        assert r.status_code == 400 and r.json()["error"] == "bad_params", bad
+    r = _post(c, "alice", fid, gids="1,2", ppem="12", advances="500,500")
+    assert r.status_code == 400 and "layout=run" in r.json()["error"]
+    assert _post(c, "alice", fid, **run, advances="-12.5,500", offsets="-3:4.5,0:0").status_code == 200
 
 
 def test_validation(c, fonts):
@@ -256,3 +306,21 @@ def test_page_variations_one_face_per_font(vf):
     assert parts.font_faces().count("@font-face") == 1
     assert 'font-variation-settings: "wdth" 87, "wght" 350.5;' in parts.style
     assert parts.style.count("font-variation-settings") == 2
+
+
+def test_page_features():
+    from font_render import page
+    assert page.parse_features("") == ""
+    assert page.parse_features(' "kern" 1, \'liga\' off,ss01, cv02 3 ') == \
+        '"kern" 1, "liga" 0, "ss01" 1, "cv02" 3'
+    for bad in ('"ke" 1', '"kern" 70000', 'kern -1', '"kern" 1; } body {', '"k\\"r" 1',
+                ", ".join(["kern"] * 65)):
+        with pytest.raises(ValueError):
+            page.parse_features(bad)
+    fd = [(".ttf", b"\0\1\0\0a"), (".ttf", b"\0\1\0\0b")]
+    plain = page.build_page([12], "Ham", ["a", "b"], fd, ["#000"] * 2, True, layout="plain")
+    feat = page.build_page([12], "Ham", ["a", "b"], fd, ["#000"] * 2, True, layout="plain",
+                           features='"kern" 1, "liga" 0')
+    assert "font-feature-settings" not in plain.style
+    assert feat.style.count('font-feature-settings: "kern" 1, "liga" 0;') == 2
+    assert feat.body == plain.body and feat.fonts_key == plain.fonts_key

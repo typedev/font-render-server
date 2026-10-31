@@ -133,9 +133,10 @@ def test_font_ids_follow_edited_bytes(c, fonts):
     assert edited == _render(c, "alice", files=[("font.ttf", a2)], **form).content
 
 
-def test_info_api3(c):
+def test_info_api4(c):
     info = c.get("/info", headers=c.tokens["alice"]).json()
-    assert info["api"] == 3
+    assert info["api"] == 4
+    assert info["render"]["features"] is True and info["glyphs"]["run_positions"] is True
     assert info["font_cache"]["enabled"] is True
     assert set(info["limits"]) == {"max_fonts", "max_font_size", "max_ppem_values"}
     assert info["pool"]["client_max"] >= 1

@@ -13,11 +13,12 @@ from ctypes import wintypes
 
 from PIL import Image
 
-from .engines import Cell, RenderError, ink_box
+from .engines import Cell, Positions, RenderError, ink_box, pens, place
 from .sfnt import PreparedFont
 
 MODES = {"bw": 3, "gray": 4, "cleartype": 5, "cleartype_natural": 6}  # lfQuality
 ETO_GLYPH_INDEX = 0x0010
+ETO_PDY = 0x2000
 TRANSPARENT = 1
 TA_BASELINE = 24
 FONTS_MAX = 32
@@ -167,9 +168,14 @@ class _Canvas:
         self.g.GdiFlush()
         ctypes.memmove(self.bits, self.fill, len(self.fill))
 
-    def draw(self, x: int, y: int, gids: list[int]):
+    def draw(self, x: int, y: int, gids: list[int], dx: list[int] | None = None,
+             pdy: bool = False):
+        """dx: lpDx, the distance to the next glyph's origin per glyph; with pdy, (dx, dy) pairs
+        (y down) — how Uniscribe's ScriptTextOut draws glyph offsets."""
         arr = (c_ushort * len(gids))(*gids)
-        if not self.g.ExtTextOutW(self.dc, x, y, ETO_GLYPH_INDEX, None, arr, len(gids), None):
+        lpdx = (c_int * len(dx))(*dx) if dx is not None else None
+        flags = ETO_GLYPH_INDEX | (ETO_PDY if pdy else 0)
+        if not self.g.ExtTextOutW(self.dc, x, y, flags, None, arr, len(gids), lpdx):
             raise RenderError("exttextout_failed")
 
     def image(self) -> Image.Image:
@@ -258,8 +264,11 @@ class GdiEngine:
                 raise RenderError("glyph_too_large")
             margin *= 2
 
-    def run(self, font: PreparedFont, gids: list[int], ppem, params: dict, background, ink):
-        """The glyphs as one ExtTextOut run: (image, pen_x, baseline_y, [pen x per glyph])."""
+    def run(self, font: PreparedFont, gids: list[int], ppem, params: dict, background, ink,
+            positions: Positions | None = None):
+        """The glyphs as one ExtTextOut run: (image, pen_x, baseline_y, [pen x per glyph],
+        [advance], [(dx, dy)] | None). With positions: lpDx = own advance + the shaper's
+        adjustment, both in whole pixels, as Uniscribe's ScriptPlace + ScriptTextOut."""
         _load(font)
         ppem = int(ppem)
         probe = _Canvas(font, ppem, params["mode"], 1, 1, background, ink)
@@ -268,6 +277,9 @@ class GdiEngine:
             abcs = probe.abc(gids)
         finally:
             probe.close()
+        own = [sum(abc) for abc in abcs]
+        if positions is not None:
+            return self._positioned(font, gids, ppem, params, background, ink, own, positions)
         margin = 2 * ppem + 16
         width = offsets[-1] + max(sum(abcs[-1]), 0) + 2 * margin + 2 * ppem
         height = 4 * ppem + 2 * margin
@@ -275,7 +287,36 @@ class GdiEngine:
         try:
             canvas.clear()
             canvas.draw(margin, margin + 2 * ppem, gids)
-            return canvas.image(), margin, margin + 2 * ppem, offsets
+            return canvas.image(), margin, margin + 2 * ppem, offsets, own, None
+        finally:
+            canvas.close()
+
+    def _positioned(self, font, gids, ppem: int, params, background, ink, own, positions):
+        advances, offsets = place(font, gids, ppem, own, positions, whole=True)
+        adv = [int(a) for a in advances]
+        off = [(int(dx), int(dy)) for dx, dy in offsets] if offsets else [(0, 0)] * len(gids)
+        pen = [int(p) for p in pens(adv)]
+        xs = [p + dx for p, (dx, _dy) in zip(pen, off)] + [pen[-1] + adv[-1]]
+        reach = max([abs(d) for o in off for d in o] + [0])
+        margin = 2 * ppem + 16 + reach
+        pen_x = margin - min(xs + [0])
+        width = max(xs + [0]) - min(xs + [0]) + 2 * margin + 2 * ppem
+        height = 4 * ppem + 2 * margin
+        base_y = margin + 2 * ppem
+        if offsets is None:
+            dx, pdy = adv, False
+        else:
+            # origin i -> origin i+1: advance + change of offset; GDI's y grows downwards
+            dx, pdy = [], True
+            for i, a in enumerate(adv):
+                nx, ny = off[i + 1] if i + 1 < len(off) else (0, 0)
+                dx += [a + nx - off[i][0], -(ny - off[i][1])]
+        canvas = _Canvas(font, ppem, params["mode"], width, height, background, ink)
+        try:
+            canvas.clear()
+            canvas.draw(pen_x + off[0][0], base_y - off[0][1], gids, dx, pdy)
+            return (canvas.image(), pen_x, base_y, pen, adv,
+                    None if offsets is None else off)
         finally:
             canvas.close()
 

@@ -198,9 +198,39 @@ def font_variation_settings(location: dict[str, float]) -> str:
     return ", ".join(f'"{tag}" {_css_number(v)}' for tag, v in location.items())
 
 
+_FEATURE_RE = re.compile(r"""^(?:"([\x20-\x7e]{4})"|'([\x20-\x7e]{4})'|([A-Za-z0-9]{4}))"""
+                         r"""(?:\s+(on|off|\d{1,5}))?$""")
+MAX_FEATURES = 64
+
+
+def parse_features(spec: str) -> str:
+    """A CSS font-feature-settings list ('"kern" 1, "liga" 0, "ss01"', quotes optional) ->
+    canonical '"kern" 1, "liga" 0, "ss01" 1'; '' for none. ValueError on anything else."""
+    out = []
+    for item in (x.strip() for x in spec.split(",")):
+        if not item:
+            continue
+        m = _FEATURE_RE.match(item)
+        tag = m and (m[1] or m[2] or m[3])
+        if not tag or any(ch in tag for ch in "\"'\\"):
+            raise ValueError(f"bad feature: {item[:20]!r}")
+        value = {"on": 1, "off": 0, None: 1}.get(m[4])
+        value = int(m[4]) if value is None else value
+        if value > 65535:
+            raise ValueError(f"bad feature value: {item[:20]!r}")
+        out.append(f'"{tag}" {value}')
+    if len(out) > MAX_FEATURES:
+        raise ValueError(f"at most {MAX_FEATURES} features")
+    return ", ".join(out)
+
+
 def _generate_sample_classes(families: list[str], colors: list[str],
-                             variations: list[dict | None] | None = None) -> str:
+                             variations: list[dict | None] | None = None,
+                             features: str = "") -> str:
     """Generate .sample-1 .. .sample-N CSS classes."""
+    # font-feature-settings is applied after font-kerning / font-variant-* (CSS Fonts 4,
+    # feature precedence), so explicitly set features are never overridden
+    ffs = f"    font-feature-settings: {features};\n" if features else ""
     parts = []
     for i, family in enumerate(families, 1):
         color = _sanitize_color(colors[i - 1] if i - 1 < len(colors) else "#000000")
@@ -212,6 +242,7 @@ def _generate_sample_classes(families: list[str], colors: list[str],
             f"    font-family: '{family}', sans-serif;\n"
             f"    color: {color};\n"
             f"{fvs}"
+            f"{ffs}"
             f"}}"
         )
     return "\n".join(parts)
@@ -310,11 +341,13 @@ def build_page(
     zoom: int = 1,
     line_height: float = 0,
     variations: list[dict | None] | None = None,
+    features: str = "",
 ) -> PageParts:
-    """variations: per font, a resolved location {tag: value} (all fvar axes) or None."""
+    """variations: per font, a resolved location {tag: value} (all fvar axes) or None.
+    features: canonical font-feature-settings (parse_features) for every text row, '' = none."""
     num_fonts = len(font_names)
     families = _font_families(font_data)
-    sample_classes = _generate_sample_classes(families, colors, variations)
+    sample_classes = _generate_sample_classes(families, colors, variations, features)
     # line_height > 0 overrides the browser default; spreads waterfall rows
     # apart so ink (accents, descenders) never crosses row boundaries
     extra_css = f".row {{ line-height: {line_height}; }}" if line_height > 0 else ""

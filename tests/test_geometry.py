@@ -176,3 +176,17 @@ def test_multi_font_rows_tagged(client, font_bytes):
 def test_info_advertises_geometry(client):
     resp = client.get("/info")
     assert resp.json()["render"]["geometry"] is True
+
+
+def test_features(client, font_bytes):
+    """features = CSS font-feature-settings on the text rows: "kern" 0 spreads AV pairs."""
+    def x0s(**form):
+        geo = _render(client, font_bytes, text="AVAVAV", ppem="24", geometry="true", **form).json()
+        return [g["x0"] for g in geo["geometry"]["rows"][0]["glyphs"]], geo["geometry"]
+    kerned, geo = x0s(features='"kern" 1')
+    assert geo["features"] == '"kern" 1'
+    assert x0s()[0] == kerned
+    assert x0s(features="kern off")[0][-1] > kerned[-1]
+    resp = client.post("/render", data={"features": '"kern" 1; color: red'},
+                       files=[("fonts", ("test.ttf", io.BytesIO(font_bytes), "font/ttf"))])
+    assert resp.status_code == 400 and resp.json()["error"] == "bad_features"

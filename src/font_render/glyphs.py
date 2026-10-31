@@ -2,7 +2,8 @@
 
 Layout `cells`: every glyph is drawn alone at an integer pen origin, so its pixels relative to
 (x0, baseline_y) do not depend on the other gids in the request. Layout `run`: the engine lays
-the glyphs out with its own advances in one call (spacing view). Each engine runs on its own
+the glyphs out in one call (spacing view), with its own advances or with the positions of a
+shaped run (`advances`, `offsets` in font units). Each engine runs on its own
 single worker thread; the output is deterministic (identical requests → identical PNG bytes).
 """
 
@@ -21,7 +22,7 @@ from PIL import Image
 from starlette.datastructures import UploadFile
 
 from . import config, dwrite_engine, gdi, page, sfnt
-from .engines import Cell, RenderError
+from .engines import Cell, Positions, RenderError
 
 router = APIRouter()
 
@@ -31,6 +32,8 @@ MAX_CELLS = 20000      # gids × ppem values per request
 MAX_GAP = 64
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _NUM_RE = re.compile(r"^\d+(?:\.\d+)?$")
+_SIGNED_RE = re.compile(r"^-?\d+(?:\.\d+)?$")
+MAX_UNITS = 1_000_000  # |advance|, |offset| in font units
 
 
 def available_engines() -> dict:
@@ -87,6 +90,35 @@ def parse_ppems(s: str) -> list[float]:
     return out
 
 
+def _units(s: str) -> float:
+    s = s.strip()
+    if not _SIGNED_RE.match(s) or abs(float(s)) > MAX_UNITS:
+        raise ValueError(s[:20])
+    return float(s)
+
+
+def parse_positions(fields: dict, count: int) -> Positions | None:
+    """`advances` ('600,580,-12') and `offsets` ('0:0,-40:310', dx:dy) in font units, one per
+    gid; None when neither is given. Offsets need advances (a shaper gives both)."""
+    adv, off = fields.get("advances", "").strip(), fields.get("offsets", "").strip()
+    if not adv and not off:
+        return None
+    if not adv:
+        raise ValueError("offsets need advances")
+    advances = [_units(x) for x in adv.split(",")]
+    offsets = None
+    if off:
+        offsets = []
+        for item in off.split(","):
+            dx, sep, dy = item.partition(":")
+            if not sep:
+                raise ValueError(f"offset must be dx:dy: {item.strip()[:20]}")
+            offsets.append((_units(dx), _units(dy)))
+    if len(advances) != count or (offsets is not None and len(offsets) != count):
+        raise ValueError(f"advances and offsets need one value per gid ({count})")
+    return Positions(advances, offsets)
+
+
 def parse_color(s: str, default: tuple[int, int, int]) -> tuple[int, int, int]:
     s = s.strip()
     if not s:
@@ -106,52 +138,59 @@ def _num(x: float):
 
 def compose(rows: list[dict], gap: int, background) -> tuple[Image.Image, list[dict]]:
     """Stack engine rows into one image. Each row: {ppem, ascent, descent, cells, run?}.
-    run = (image, pen_x, baseline_y, offsets) for layout=run, else None (cells layout)."""
+    run = engine.run()'s (image, pen_x, baseline_y, pens, advances, offsets) for layout=run,
+    else None (cells layout)."""
     placed, width, y = [], 1, gap
     for row in rows:
         cells: list[Cell] = row["cells"]
-        inked = [c for c in cells if c.img is not None]
-        asc = max([row["ascent"], 0] + [-c.top for c in inked])
-        desc = max([row["descent"], 0] + [c.top + c.img.height for c in inked])
-        if row.get("run") is None:
+        run = row.get("run")
+        offsets = run[5] if run is not None else None
+        dys = [dy for _dx, dy in offsets] if offsets else [0] * len(cells)
+        inked = [(c, dy) for c, dy in zip(cells, dys) if c.img is not None]
+        asc = max([row["ascent"], 0] + [dy - c.top for c, dy in inked])
+        desc = max([row["descent"], 0] + [c.top + c.img.height - dy for c, dy in inked])
+        if run is None:
             xs, x = [], gap
             for c in cells:
                 lead = max(0, -c.left) if c.img is not None else 0
                 right = max(math.ceil(c.advance), c.left + c.img.width if c.img is not None else 0, 0)
                 xs.append(x + lead)
                 x += lead + right + gap
-            row_w, paste = max(x, gap), None
+            row_w, paste, ys, advances = max(x, gap), None, None, [c.advance for c in cells]
         else:
-            img, pen_x, base_y, offsets = row["run"]
-            end = offsets[-1] + max(math.ceil(cells[-1].advance), 0) if offsets else 0
+            img, pen_x, base_y, pen, advances, _ = run
+            origins = [p + dx for p, (dx, _dy) in zip(pen, offsets)] if offsets else pen
+            end = pen[-1] + max(math.ceil(advances[-1]), 0) if pen else 0
             ink = [(pen_x + o + c.left, pen_x + o + c.left + c.img.width)
-                   for o, c in zip(offsets, cells) if c.img is not None]
+                   for o, c in zip(origins, cells) if c.img is not None]
             left = math.floor(min([pen_x] + [a for a, _ in ink]))  # offsets may be fractional
             right = math.ceil(max([pen_x + end] + [b for _, b in ink]))
             crop = img.crop((left, base_y - asc, right, base_y + desc))
-            xs = [gap + pen_x - left + o for o in offsets]
+            xs = [gap + pen_x - left + o for o in origins]
+            ys = dys if offsets else None
             row_w, paste = gap + crop.width + gap, crop
-        placed.append((row, y, asc, desc, xs, paste, row_w))
+        placed.append((row, y, asc, desc, xs, ys, advances, paste, row_w))
         width = max(width, row_w)
         y += asc + desc + gap
 
     out = Image.new("RGB", (width, max(y, 1)), background)
     geo = []
-    for row, top, asc, desc, xs, paste, row_w in placed:
+    for row, top, asc, desc, xs, ys, advances, paste, row_w in placed:
         baseline = top + asc
         if paste is not None:
             out.paste(paste, (gap, top))
         glyphs = []
-        for x0, c in zip(xs, row["cells"]):
+        for i, (x0, adv, c) in enumerate(zip(xs, advances, row["cells"])):
+            y0 = baseline - ys[i] if ys else baseline
             if c.img is not None:
                 if paste is None:
                     out.paste(c.img, (x0 + c.left, baseline + c.top))
-                box = [x0 + c.left, baseline + c.top, x0 + c.left + c.img.width,
-                       baseline + c.top + c.img.height]
+                box = [x0 + c.left, y0 + c.top, x0 + c.left + c.img.width,
+                       y0 + c.top + c.img.height]
             else:
-                box = [x0, baseline, x0, baseline]
-            glyphs.append({"gid": c.gid, "x0": _num(x0), "advance": _num(c.advance),
-                           "box": box, **c.extra})
+                box = [x0, y0, x0, y0]
+            glyphs.append({"gid": c.gid, "x0": _num(x0), **({"y0": _num(y0)} if ys else {}),
+                           "advance": _num(adv), "box": box, **c.extra})
         geo.append({"ppem": _num(row["ppem"]), "baseline_y": baseline,
                     "box": [gap, top, row_w - gap, top + asc + desc],
                     "ascent": row["ascent"], "descent": row["descent"], **row.get("extra", {}),
@@ -160,11 +199,12 @@ def compose(rows: list[dict], gap: int, background) -> tuple[Image.Image, list[d
 
 
 def _render_sync(engine, font: sfnt.PreparedFont, gids, ppems, params, layout, gap,
-                 background, ink) -> tuple[bytes, list[dict]]:
+                 background, ink, positions=None) -> tuple[bytes, list[dict]]:
     rows = []
     for ppem in ppems:
         ascent, descent, cells, *extra = engine.cells(font, gids, ppem, params, background, ink)
-        run = engine.run(font, gids, ppem, params, background, ink) if layout == "run" else None
+        run = (engine.run(font, gids, ppem, params, background, ink, positions)
+               if layout == "run" else None)
         rows.append({"ppem": ppem, "ascent": ascent, "descent": descent, "cells": cells, "run": run,
                      "extra": extra[0] if extra else {}})
     img, geo = compose(rows, gap, background)
@@ -208,11 +248,14 @@ async def glyphs(request: Request):
         background = parse_color(fields.get("background", ""), (255, 255, 255))
         ink = parse_color(fields.get("ink", ""), (0, 0, 0))
         gap = int(fields.get("gap", "4"))
+        positions = parse_positions(fields, len(gids))
     except ValueError as e:
         return _error(400, "bad_params", detail=str(e))
     layout = fields.get("layout", "cells")
     if layout not in ("cells", "run"):
         return _error(400, "layout must be cells or run")
+    if positions is not None and layout != "run":
+        return _error(400, "advances and offsets need layout=run")
     if not gids or len(gids) > MAX_GIDS:
         return _error(400, f"1..{MAX_GIDS} gids required")
     if not ppems or len(ppems) > config.MAX_PPEM_VALUES or len(gids) * len(ppems) > MAX_CELLS:
@@ -260,7 +303,7 @@ async def glyphs(request: Request):
         try:
             png, rows = await asyncio.wait_for(loop.run_in_executor(
                 _executor(engine_name), _render_sync, engine, font, gids, ppems, params,
-                layout, gap, background, ink), timeout=config.TIMEOUT_S)
+                layout, gap, background, ink, positions), timeout=config.TIMEOUT_S)
         except asyncio.TimeoutError:
             return _error(504, "timeout")
         except RenderError as e:
@@ -274,6 +317,8 @@ async def glyphs(request: Request):
             "engine": engine_name,
             "render_version": engine.render_version,
             "params": {**_jsonable(params), "layout": layout, "gap": gap,
+                       **({"positions": "advances" if positions.offsets is None
+                           else "advances+offsets"} if positions else {}),
                        "background": "#%02x%02x%02x" % background, "ink": "#%02x%02x%02x" % ink},
             "upem": font.upem,
             "gasp": [{"max_ppem": m, "flags": f} for m, f in font.gasp] if font.gasp is not None else None,

@@ -22,7 +22,7 @@ from PIL import Image
 
 from . import dwrite
 from .dwrite import Com
-from .engines import Cell, RenderError, ink_box
+from .engines import Cell, Positions, RenderError, ink_box, pens, place
 from . import sfnt
 from .sfnt import PreparedFont
 
@@ -74,6 +74,10 @@ class DWRITE_GLYPH_RUN(Structure):
                 ("glyphIndices", POINTER(c_uint16)), ("glyphAdvances", POINTER(c_float)),
                 ("glyphOffsets", c_void_p), ("isSideways", wintypes.BOOL),
                 ("bidiLevel", c_uint32)]
+
+
+class DWRITE_GLYPH_OFFSET(Structure):
+    _fields_ = [("advanceOffset", c_float), ("ascenderOffset", c_float)]
 
 
 class DWRITE_FONT_AXIS_VALUE(Structure):
@@ -255,10 +259,13 @@ class _Target:
         ctypes.memmove(self.bits, self.fill, len(self.fill))
 
     def draw(self, fx: _Factory, face: Com, ppem: float, gids, advances, x: float, y: float,
-             measuring: str, params: Com, ink):
+             measuring: str, params: Com, ink, offsets=None):
+        """offsets: [(dx, dy)] in pixels, dy up (glyphOffsets: advanceOffset, ascenderOffset)."""
         n = len(gids)
+        goff = (DWRITE_GLYPH_OFFSET * n)(*offsets) if offsets is not None else None
         run = DWRITE_GLYPH_RUN(face.ptr, ppem, n, (c_uint16 * n)(*gids),
-                               (c_float * n)(*advances), None, False, 0)
+                               (c_float * n)(*advances),
+                               ctypes.cast(goff, c_void_p) if goff is not None else None, False, 0)
         color = ink[0] | (ink[1] << 8) | (ink[2] << 16)
         self.target.call(3, HR, (c_float, x), (c_float, y), (c_int, MEASURING_MODES[measuring]),
                          (POINTER(DWRITE_GLYPH_RUN), byref(run)), (c_void_p, params.ptr),
@@ -404,27 +411,38 @@ class DWriteEngine:
         finally:
             rp.release()
 
-    def run(self, font: PreparedFont, gids, ppem, params, background, ink):
+    def run(self, font: PreparedFont, gids, ppem, params, background, ink,
+            positions: Positions | None = None):
+        """With positions: glyphAdvances = own advance + the shaper's adjustment, glyphOffsets
+        scaled; whole pixels for gdi_classic/gdi_natural measuring (GetGdiCompatibleGlyphPlacements)."""
         fx = self._factory()
         face = fx.face(font, params["axes"])
         params, _info = self._effective(fx, face, ppem, params)
         rp = fx.rendering_params(params)
         try:
             _a, _d, advances = self._metrics(face, font, ppem, gids, params["measuring_mode"])
-            offsets, x = [], 0.0
-            for a in advances:
-                offsets.append(x)
-                x += a
+            glyph_offsets = None
+            if positions is not None:
+                advances, glyph_offsets = place(font, gids, ppem, advances, positions,
+                                                whole=params["measuring_mode"] != "natural")
+            offsets = pens(advances)
             size = math.ceil(ppem)
             margin = 2 * size + 16
-            width = math.ceil(x) + 2 * margin + 2 * size
+            pen_x, width = margin, math.ceil(offsets[-1] + advances[-1]) + 2 * margin + 2 * size
+            if positions is not None:
+                xs = [p + dx for p, (dx, _dy) in zip(offsets, glyph_offsets or [(0, 0)] * len(gids))]
+                xs.append(offsets[-1] + advances[-1])
+                margin += math.ceil(max([abs(d) for o in glyph_offsets or [] for d in o] + [0]))
+                pen_x = margin - math.floor(min(xs + [0]))
+                width = math.ceil(max(xs + [0])) - math.floor(min(xs + [0])) + 2 * margin + 2 * size
             height = 4 * size + 2 * margin
             target = _Target(fx, width, height, params["antialias"], background)
             try:
                 target.clear()
-                target.draw(fx, face, ppem, gids, advances, margin, margin + 2 * size,
-                            params["measuring_mode"], rp, ink)
-                return target.image(), margin, margin + 2 * size, offsets
+                target.draw(fx, face, ppem, gids, advances, pen_x, margin + 2 * size,
+                            params["measuring_mode"], rp, ink, glyph_offsets)
+                return (target.image(), pen_x, margin + 2 * size, offsets, advances,
+                        glyph_offsets)
             finally:
                 target.release()
         finally:

@@ -1,7 +1,8 @@
 # HTTP API
 
 Base URL: `http://<server>:41800`. Interactive docs: `GET /docs` (needs a token once anonymous
-access is off). `GET /info` reports `"api": 3` (2 = font cache, 3 = engines and Windows render settings).
+access is off). `GET /info` reports `"api": 4` (2 = font cache, 3 = engines and Windows render settings, 4 = `features` in
+`/render`, `advances`/`offsets` in `/glyphs`).
 
 ## Authentication
 
@@ -44,6 +45,7 @@ order (ids first, then files). 1–20 fonts per request, up to 10 MB each.
 | `line_height` | `0` | CSS line-height of rows; `0` = browser default. `2.0` keeps accents/descenders inside their row |
 | `geometry` | `false` | Return JSON with glyph geometry (below) |
 | `variations` | `""` | Variable-font location per font, `;`-separated in font order: `wght=350.5,wdth=87;;wght=700`. An empty entry renders that font as before. See [Variable fonts](#variable-fonts) |
+| `features` | `""` | OpenType features for every text row, as CSS `font-feature-settings`: `"kern" 1, "liga" 0, "ss01"` (quotes optional, value `on`/`off`/0–65535, at most 64). Empty = the browser's defaults (Chromium: kerning and standard ligatures on). The page sets no `font-kerning` / `font-variant-*`, and `font-feature-settings` wins over them anyway. Characters the font maps (PUA included) are shaped like any other; the per-character geometry boxes follow UTF-16 code units, so a ligature's box belongs to its first character. Geometry mode echoes the normalized list as `geometry.features` |
 | `delay_font`, `delay_resize` | `0` | Extra waits in ms (not needed; kept for experiments) |
 
 Errors: `400` invalid parameters or an empty / too large font file,
@@ -120,6 +122,8 @@ Glyph ids rendered by a native Windows engine instead of a browser: `engine=gdi`
 | `gids` | — | Glyph ids, `12,13,40-60`; at most 512 |
 | `ppem` | `9-24` | Device pixels per em, `9-24` or `9,12.5,16`; whole numbers for GDI, fractional allowed for DirectWrite; 1–256. There is no `scale`: send ppem × scale (GDI: rounded) |
 | `layout` | `cells` | `cells`: each glyph is drawn alone at an integer pen origin with `gap` around its ink, so its pixels relative to (`x0`, `baseline_y`) do not depend on the other gids in the request. `run`: the engine lays the glyphs out itself in one call (spacing view; ClearType fringes may touch) |
+| `advances` (run) | — | A shaped run's advances in font units, one per gid: `1180,1233,-20` (HarfBuzz `x_advance`). See [Shaped runs](#shaped-runs) |
+| `offsets` (run) | — | Glyph offsets in font units, `dx:dy` per gid, y up: `0:0,-40:310` (HarfBuzz `x_offset:y_offset`); needs `advances` |
 | `gap` | `4` | Pixels between cells, rows and around the image (0–64) |
 | `background`, `ink` | `#ffffff`, `#000000` | `#rgb` / `#rrggbb` |
 | `mode` (gdi) | `cleartype` | `bw` (NONANTIALIASED_QUALITY), `gray` (ANTIALIASED_QUALITY), `cleartype` (CLEARTYPE_QUALITY, compatible widths), `cleartype_natural` (CLEARTYPE_NATURAL_QUALITY) |
@@ -180,10 +184,29 @@ Identical requests give byte-identical PNGs. Response:
 | `rows[].rendering_mode`, `rows[].grid_fit` | dwrite: the rendering mode used (for `default`: what `IDWriteFontFace3::GetRecommendedRenderingMode` picked from size and `gasp`, and the run is drawn with exactly that mode and grid fit) |
 | `gasp` | The font's `gasp` ranges `[{"max_ppem": 8, "flags": 2}, …]`, or `null` if the font has no table, so you can check what the engines saw |
 | `rows[].ascent`, `descent` | The engine's font metrics at this size (GDI: `tmAscent`/`tmDescent`); the row is at least this tall and also fits all ink |
-| `glyphs[].x0` | Pen origin on the baseline, in image pixels. Always an integer in `cells`; in `run` it is fractional for DirectWrite natural measuring |
-| `glyphs[].advance` | The advance the engine itself uses. GDI: A+B+C from `GetCharABCWidthsI` (`abc`), so compatible widths show here. dwrite `gdi_classic`/`gdi_natural` measuring: `GetGdiCompatibleGlyphMetrics` scaled and rounded. dwrite `natural`: design advance × ppem / upem |
+| `glyphs[].x0` | Pen origin on the baseline, in image pixels. Always an integer in `cells`; in `run` it is fractional for DirectWrite natural measuring. With `offsets`: the glyph origin drawn (pen + dx) |
+| `glyphs[].y0` | Only with `offsets`: the glyph origin's y (baseline − dy), in image pixels |
+| `params.positions` | Only with `advances`: `advances` or `advances+offsets` |
+| `glyphs[].advance` | With `advances`: the device advance used (below). Otherwise the advance the engine itself uses. GDI: A+B+C from `GetCharABCWidthsI` (`abc`), so compatible widths show here. dwrite `gdi_classic`/`gdi_natural` measuring: `GetGdiCompatibleGlyphMetrics` scaled and rounded. dwrite `natural`: design advance × ppem / upem |
 | `glyphs[].design_advance` | `hmtx` advance in font units (`upem`) |
 | `glyphs[].box` | Ink box (pixels that differ from the background), in image pixels; `[x0, baseline, x0, baseline]` for a glyph without ink. In `run` layout it is the ink of the glyph drawn alone |
+
+### Shaped runs
+
+With `layout=run`, `advances` (and `offsets`) place the glyphs the way an application draws a run
+shaped by HarfBuzz / DirectWrite / Uniscribe: the shaper's adjustment is added to the engine's own
+(hinted) advance, `advance px = own advance + (advances[i] − hmtx advance) × ppem / upem`, and the
+offsets are scaled by ppem / upem. Without the fields the run uses the glyphs' own advances, as before.
+
+| Engine | How it is drawn |
+|--------|-----------------|
+| `dwrite`, `natural` measuring | `DWRITE_GLYPH_RUN.glyphAdvances` / `glyphOffsets` fractional, as computed |
+| `dwrite`, `gdi_classic` / `gdi_natural` measuring | Advances and offsets rounded to whole pixels, as `GetGdiCompatibleGlyphPlacements` does |
+| `gdi` | `ExtTextOutW` `lpDx` = advances in whole pixels; with offsets `ETO_PDY` (dx, dy) pairs between glyph origins, which is how Uniscribe's `ScriptTextOut` draws `GOFFSET`s |
+
+Whole pixels are rounded half up. Lengths that do not match `gids`, values over 10⁶, `offsets`
+without `advances`, or the fields with `layout=cells` → `400`. `glyphs[].box` is still the ink of
+the glyph drawn alone, moved to where it was drawn.
 
 Errors: `400` bad parameters, or `gid_out_of_range` with `max`; `409` `missing_fonts`; `422`
 font not readable or rejected by the engine (`font_not_selected`, `dwrite_*`); `429` busy; `501` engine not available on this host;
@@ -219,7 +242,7 @@ Server version and capabilities. Fields clients rely on:
 | `browsers` | `{supported, installed, active}` |
 | `render_version` | Bumped when rendered pixels can change — use it (with `browser_version` and `platform`) as a render-cache key |
 | `browser_version` | e.g. `{"chromium": "145.0.7632.6"}` |
-| `api` | `2` = font cache available; `3` = `engines`, `render_versions`, `windows` |
+| `api` | `2` = font cache available; `3` = `engines`, `render_versions`, `windows`; `4` = `render.features`, `glyphs.run_positions` |
 | `engines` | Render engines this host runs: `["chromium", "gdi", "dwrite"]`; the native ones serve `POST /glyphs` |
 | `render_versions` | Per engine, e.g. `{"chromium": 2, "gdi": 1, "dwrite": 1}`; bumped when that engine's pixels can change |
 | `windows` | Everything on the host that changes pixels, for the service account (below); `null` off Windows |
@@ -228,6 +251,8 @@ Server version and capabilities. Fields clients rely on:
 | `limits` | `{max_fonts, max_font_size, max_ppem_values}` |
 | `pool` | `{browsers, concurrency, busy, queued, queue_max, client_max, timeout_s, recycle_after, live, page_cache}` |
 | `render.geometry` | `true` = geometry mode supported |
+| `render.features` | `true` = `/render` takes `features` |
+| `glyphs.run_positions` | `true` = `/glyphs` `layout=run` takes `advances` / `offsets` |
 
 ### `windows`
 
